@@ -2,6 +2,7 @@ package ripsrc
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,9 +43,9 @@ func (w *limitedWriter) Bytes() []byte {
 	return w.buf.Bytes()
 }
 
-func getBlobRef(dir string, sha string, filename string) (string, error) {
+func getBlobRef(ctx context.Context, dir string, sha string, filename string) (string, error) {
 	var buf bytes.Buffer
-	cmd := exec.Command("git", "ls-tree", sha, "--", filename)
+	cmd := exec.CommandContext(ctx, "git", "ls-tree", sha, "--", filename)
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = &buf
@@ -61,16 +62,16 @@ func getBlobRef(dir string, sha string, filename string) (string, error) {
 	return "", nil
 }
 
-func getBlob(dir string, sha string, filename string) ([]byte, error) {
+func getBlob(ctx context.Context, dir string, sha string, filename string) ([]byte, error) {
 	// limit the size of the blob we read in to a bit larger than what linguist wants as max
 	// this will prevent reading in huge files that then are rejected anyway OR running
 	// out of memory during processing
-	ref, err := getBlobRef(dir, sha, filename)
+	ref, err := getBlobRef(ctx, dir, sha, filename)
 	if err != nil {
 		return nil, fmt.Errorf("error getting blob ref for %s for sha %s (%s)", filename, sha, dir)
 	}
 	buf := limitedWriter{max: 4092} // only read 4k
-	cmd := exec.Command("git", "cat-file", "-p", ref)
+	cmd := exec.CommandContext(ctx, "git", "cat-file", "-p", ref)
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = &buf

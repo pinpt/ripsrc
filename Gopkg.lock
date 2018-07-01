@@ -70,8 +70,8 @@
 [[projects]]
   name = "github.com/jhaynie/gitblame"
   packages = ["."]
-  revision = "9c350c41958e15e539b31ca0b2c16e9a7de9ad47"
-  version = "0.0.5"
+  revision = "aa617b4b1593317528dcff58a240111734db315c"
+  version = "0.0.6"
 
 [[projects]]
   name = "github.com/karrick/godirwalk"
@@ -405,6 +405,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1cda028136b3a9111526cdb6c5299e892a0158acdc51998a8e2c65f10ffb3aaf"
+  inputs-digest = "8f48f5696684839012aa02f3844a8ea4ffca6f999b958866ede6dac9cb7312b3"
   solver-name = "gps-cdcl"
   solver-version = 1

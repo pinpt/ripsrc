@@ -3,6 +3,7 @@ package ripsrc
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
@@ -91,10 +92,21 @@ func parseAuthorEmail(email string) string {
 }
 
 // StreamCommits will stream all the commits to the returned channel and signal the done channel when completed
-func StreamCommits(dir string, commits chan<- *Commit, done *sync.WaitGroup, errors chan<- error) error {
+func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *Commit, done *sync.WaitGroup, errors chan<- error) error {
 	var errout bytes.Buffer
 	var cmd *exec.Cmd
-	cmd = exec.Command("git", "log", "--raw", "--reverse", "--pretty=format:commit %H%nAuthor: %an <%ae>%nDate: %aI%nParent: %P%n%n", "--no-merges")
+	args := []string{
+		"log",
+		"--raw",
+		"--reverse",
+		"--pretty=format:commit %H%nAuthor: %an <%ae>%nDate: %aI%nParent: %P%n%n",
+		"--no-merges",
+	}
+	// if provided, we need to start streaming after this commit forward
+	if sha != "" {
+		args = append(args, sha+"...")
+	}
+	cmd = exec.CommandContext(ctx, "git", args...)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -126,6 +138,14 @@ func StreamCommits(dir string, commits chan<- *Commit, done *sync.WaitGroup, err
 				}
 				errors <- err
 				return
+			}
+
+			// see if our context is cancelled
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				break
 			}
 
 			buf = buf[0 : len(buf)-1]

@@ -1,6 +1,7 @@
 package ripsrc
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -39,14 +40,16 @@ func findGitDir(dir string) ([]string, error) {
 type Filter struct {
 	Blacklist *regexp.Regexp
 	Whitelist *regexp.Regexp
+	// the SHA to start streaming from, if not provided will start from the beginning
+	SHA string
 }
 
 // Rip will rip through all directories provided looking for git directories
 // and will stream blame details for each commit back to results
 // the results channel will automatically be called once all the commits are
 // streamed. this function will block until all results are streamed
-func Rip(dirs []string, results chan<- BlameResult, errors chan<- error, filter *Filter) {
-	pool := NewBlameWorkerPool(runtime.NumCPU(), results, errors, filter)
+func Rip(ctx context.Context, dirs []string, results chan<- BlameResult, errors chan<- error, filter *Filter) {
+	pool := NewBlameWorkerPool(ctx, runtime.NumCPU(), results, errors, filter)
 	pool.Start()
 	commits := make(chan *Commit, 1000)
 	var wg sync.WaitGroup
@@ -62,7 +65,11 @@ func Rip(dirs []string, results chan<- BlameResult, errors chan<- error, filter 
 			wg.Add(1)
 			// we use a semaphore so that we don't overrun the open files limit
 			sem.Acquire()
-			if err := StreamCommits(gitdir, commits, &wg, errors); err != nil {
+			var sha string
+			if len(dirs) == 1 && filter.SHA != "" {
+				sha = filter.SHA
+			}
+			if err := StreamCommits(ctx, gitdir, sha, commits, &wg, errors); err != nil {
 				sem.Release()
 				errors <- fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
 				return

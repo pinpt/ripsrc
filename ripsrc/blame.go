@@ -1,6 +1,7 @@
 package ripsrc
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -48,6 +49,7 @@ type BlameResult struct {
 
 // BlameWorkerPool is worker pool for processing blame
 type BlameWorkerPool struct {
+	ctx        context.Context
 	count      int
 	commitjobs chan *Commit
 	filejobs   chan *filejob
@@ -140,7 +142,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 						// if not removed (since it won't be in the tree) and the filename
 						// looks like a possible license file
 						if cf.Status != GitFileCommitStatusRemoved && possibleLicense(filename) {
-							buf, err := getBlob(job.Dir, job.SHA, filename)
+							buf, err := getBlob(p.ctx, job.Dir, job.SHA, filename)
 							if err == nil && !enry.IsBinary(buf) {
 								license, err = detect(filename, buf)
 							}
@@ -226,7 +228,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		lines = append(lines, bline)
 		return nil
 	}
-	if err := gitblame.Generate(job.commit.Dir, job.commit.SHA, job.filename, callback, nil); err != nil {
+	if err := gitblame.GenerateWithContext(p.ctx, job.commit.Dir, job.commit.SHA, job.filename, callback, nil); err != nil {
 		if strings.Contains(err.Error(), "exit status 128") {
 			// this happens if the path is malformed and the filename cannot be found. long term
 			// we should figure out why git doesn't like these filenames even when escaped but
@@ -289,9 +291,10 @@ func (p *BlameWorkerPool) process(job *filejob) {
 }
 
 // NewBlameWorkerPool returns a new worker pool
-func NewBlameWorkerPool(count int, results chan<- BlameResult, errors chan<- error, filter *Filter) *BlameWorkerPool {
+func NewBlameWorkerPool(ctx context.Context, count int, results chan<- BlameResult, errors chan<- error, filter *Filter) *BlameWorkerPool {
 	processor.ProcessConstants()
 	return &BlameWorkerPool{
+		ctx:        ctx,
 		count:      count,
 		commitjobs: make(chan *Commit, count*2),
 		filejobs:   make(chan *filejob, count*10),

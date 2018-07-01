@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -16,9 +17,12 @@ var rootCmd = &cobra.Command{
 	Use:  "ripsrc [dir,...]",
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		errors := make(chan error, 1)
 		go func() {
 			for err := range errors {
+				cancel()
 				fmt.Println(err)
 				os.Exit(1)
 			}
@@ -26,13 +30,17 @@ var rootCmd = &cobra.Command{
 		var filter *ripsrc.Filter
 		include, _ := cmd.Flags().GetString("include")
 		exclude, _ := cmd.Flags().GetString("exclude")
-		if include != "" || exclude != "" {
+		sha, _ := cmd.Flags().GetString("sha")
+		if include != "" || exclude != "" || sha != "" {
 			filter = &ripsrc.Filter{}
 			if include != "" {
 				filter.Whitelist = regexp.MustCompile(include)
 			}
 			if exclude != "" {
 				filter.Blacklist = regexp.MustCompile(exclude)
+			}
+			if sha != "" {
+				filter.SHA = sha
 			}
 		}
 		var count int
@@ -50,9 +58,9 @@ var rootCmd = &cobra.Command{
 			resultsDone <- true
 		}()
 		started := time.Now()
-		ripsrc.Rip(args, results, errors, filter)
+		ripsrc.Rip(ctx, args, results, errors, filter)
 		<-resultsDone
-		fmt.Printf("finished processing %d commits from %d directories in %v\n", count, len(args), time.Since(started))
+		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
 	},
 }
 
@@ -61,6 +69,7 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	rootCmd.Flags().String("include", "", "include filter as a regular expression")
 	rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
+	rootCmd.Flags().String("sha", "", "start streaming from sha (only works with one directory)")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
