@@ -92,7 +92,7 @@ func (p *BlameWorkerPool) Submit(job *Commit) {
 
 var (
 	excludeDirs       = regexp.MustCompile("^(\\.git|CVS|\\.svn|\\.hg|Godeps|vendor|node_modules|\\.webpack)\\/")
-	excludeFiles      = regexp.MustCompile("^(\\.gitignore|\\.gitattributes|package\\.json|package-lock\\.json|yarn\\.lock|Gopkg\\.lock|Gopkg\\.toml|glide\\.lock|glide\\.yaml|\\.eslintrc|\\.babelrc|\\.eslintignore|\\.travis\\.yml|LICENSE|README|AUTHORS)")
+	excludeFiles      = regexp.MustCompile("^(\\.circleci|\\.github|\\.gitignore|\\.gitattributes|package\\.json|package-lock\\.json|yarn\\.lock|Gopkg\\.lock|Gopkg\\.toml|glide\\.lock|glide\\.yaml|\\.eslintrc|\\.babelrc|\\.eslintignore|\\.travis\\.yml|LICENSE|README|AUTHORS)")
 	excludeExtensions = regexp.MustCompile("(?i)\\.(ar|zip|gz|gzip|Z|tar|gif|png|jpg|jpeg|ttf|svg|mpg|mp4|exe|pyc|class|bmp|ico|mov|mp3|pdf|rpm|psd|rtf|tiff|webm|webp|wmv|woff|woff2|xls|xlsx|doc|docx|pptx|ppt|fla|flv|avi|bz2|cab|crx|deb|elf|eot|jxr|lz|midi|otf|swf|bin|pem|p12|pfx|a|o|obj|dylib|dll|so)$")
 )
 
