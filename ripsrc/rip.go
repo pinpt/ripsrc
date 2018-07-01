@@ -66,7 +66,7 @@ func Rip(ctx context.Context, dirs []string, results chan<- BlameResult, errors 
 			// we use a semaphore so that we don't overrun the open files limit
 			sem.Acquire()
 			var sha string
-			if len(dirs) == 1 && filter.SHA != "" {
+			if len(dirs) == 1 && filter != nil && filter.SHA != "" {
 				sha = filter.SHA
 			}
 			if err := StreamCommits(ctx, gitdir, sha, commits, &wg, errors); err != nil {
