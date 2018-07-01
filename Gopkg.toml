@@ -28,7 +28,6 @@
 [[constraint]]
   name = "github.com/boyter/scc"
   #version = "1.2.0"
-  branch = "master"
   revision = "d71db5c9a9c518902ece8c4b920b95f39346cabb"
 
 [[constraint]]

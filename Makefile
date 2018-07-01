@@ -13,6 +13,9 @@ BUILDDIR := $(BASEDIR)/dist
 
 all: clean linux windows darwin
 
+dependencies:
+	@dep ensure
+
 setup:
 	@mkdir -p $(BUILDDIR)
 

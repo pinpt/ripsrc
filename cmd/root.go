@@ -41,7 +41,12 @@ var rootCmd = &cobra.Command{
 		go func() {
 			for blame := range results {
 				count++
-				fmt.Printf("[%s] %s language=%s,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v\n", color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity)
+				if blame.License != nil {
+					fmt.Printf("%v %v %f\n", blame.Filename, blame.License.Name, blame.License.Confidence)
+				}
+				if !blame.Skipped {
+					fmt.Printf("[%s] %s language=%s,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v\n", color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity)
+				}
 			}
 			resultsDone <- true
 		}()

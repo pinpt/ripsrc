@@ -25,6 +25,7 @@ type BlameLine struct {
 	Code    bool
 	Blank   bool
 
+	// private, only used internally
 	line *string
 }
 
@@ -41,6 +42,8 @@ type BlameResult struct {
 	Complexity         int64
 	WeightedComplexity float64
 	Skipped            bool
+	License            *License
+	Status             CommitStatus
 }
 
 // BlameWorkerPool is worker pool for processing blame
@@ -107,21 +110,58 @@ func (p *BlameWorkerPool) runCommitJobs() {
 	for job := range p.commitjobs {
 		if len(job.Files) > 0 {
 			for filename, cf := range job.Files {
+				var skipped bool
+				var custom bool
 				if p.shouldProcess(filename) {
 					if p.filter != nil {
 						// if a blacklist, exclude if matched
 						if p.filter.Blacklist != nil {
 							if p.filter.Blacklist.MatchString(filename) {
-								continue
+								skipped = true
+								custom = true
 							}
 						}
 						// if a whitelist, exclude if not matched
 						if p.filter.Whitelist != nil {
 							if !p.filter.Whitelist.MatchString(filename) {
-								continue
+								skipped = true
+								custom = true
 							}
 						}
 					}
+				} else {
+					skipped = true
+				}
+				var license *License
+				if skipped {
+					// if skipped and custom (meaning via filter), we still send it back
+					// to indicate that we skipped it
+					if !custom {
+						// if not removed (since it won't be in the tree) and the filename
+						// looks like a possible license file
+						if cf.Status != GitFileCommitStatusRemoved && possibleLicense(filename) {
+							buf, err := getBlob(job.Dir, job.SHA, filename)
+							if err == nil && !enry.IsBinary(buf) {
+								license, err = detect(filename, buf)
+							}
+						}
+						p.results <- BlameResult{
+							Commit:             job,
+							Language:           "",
+							Filename:           filename,
+							Lines:              nil,
+							Loc:                0,
+							Sloc:               0,
+							Comments:           0,
+							Blanks:             0,
+							Complexity:         0,
+							WeightedComplexity: 0,
+							Skipped:            true,
+							License:            license,
+							Status:             cf.Status,
+						}
+					}
+				} else {
 					// if removed, we need to keep a record so we can detect it
 					// but we don't need blame, etc so just send it to the results channel
 					if cf.Status == GitFileCommitStatusRemoved {
@@ -136,6 +176,9 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							Blanks:             0,
 							Complexity:         0,
 							WeightedComplexity: 0,
+							Skipped:            true,
+							License:            license,
+							Status:             cf.Status,
 						}
 					} else {
 						// only process files that aren't blacklisted
@@ -205,6 +248,10 @@ func (p *BlameWorkerPool) process(job *filejob) {
 	processor.CountStats(filejob)
 	buf = nil
 	if !statcallback.generated {
+		var license *License
+		if possibleLicense(job.filename) {
+			license, _ = detect(job.filename, buf)
+		}
 		p.results <- BlameResult{
 			Commit:             job.commit,
 			Language:           language,
@@ -216,6 +263,8 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Blanks:             filejob.Blank,
 			Complexity:         filejob.Complexity,
 			WeightedComplexity: filejob.WeightedComplexity,
+			License:            license,
+			Status:             job.commit.Files[job.filename].Status,
 		}
 	} else {
 		// since we received it, we need to process it ... but this means
@@ -234,6 +283,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Complexity:         0,
 			WeightedComplexity: 0,
 			Skipped:            true,
+			Status:             job.commit.Files[job.filename].Status,
 		}
 	}
 }
