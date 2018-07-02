@@ -4,7 +4,8 @@
 [[projects]]
   name = "github.com/boyter/scc"
   packages = ["processor"]
-  revision = "d71db5c9a9c518902ece8c4b920b95f39346cabb"
+  revision = "2018fa6b6c777b7ff4dbf2a37db3d3512466b4e3"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
@@ -405,6 +406,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8f48f5696684839012aa02f3844a8ea4ffca6f999b958866ede6dac9cb7312b3"
+  inputs-digest = "1d652b6e66ded9bcc9b576caba03b88bdac4d3fc635a9113fddf80b6ff1196cb"
   solver-name = "gps-cdcl"
   solver-version = 1
