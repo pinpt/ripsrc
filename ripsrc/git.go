@@ -8,6 +8,7 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,9 @@ type CommitFile struct {
 	Renamed     bool
 	RenamedFrom string
 	RenamedTo   string
+	Additions   int
+	Deletions   int
+	Binary      bool
 }
 
 // Commit is a specific detail around a commit
@@ -46,17 +50,22 @@ type Commit struct {
 	Files   map[string]*CommitFile
 	Date    time.Time
 	Ordinal int64
+	Message string
+	Parent  *string
 }
 
 var (
-	lend         = []byte("\n")
-	commitPrefix = []byte("commit ")
-	authorPrefix = []byte("Author: ")
-	emailRegex   = regexp.MustCompile("<(.*)>")
-	datePrefix   = []byte("Date: ")
-	space        = []byte(" ")
-	tab          = []byte("\t")
-	rPrefix      = []byte("R")
+	lend          = []byte("\n")
+	commitPrefix  = []byte("commit ")
+	authorPrefix  = []byte("Author: ")
+	messagePrefix = []byte("Message: ")
+	parentPrefix  = []byte("Parent: ")
+	emailRegex    = regexp.MustCompile("<(.*)>")
+	datePrefix    = []byte("Date: ")
+	space         = []byte(" ")
+	tab           = []byte("\t")
+	dash          = []byte("-")
+	rPrefix       = []byte("R")
 )
 
 func toCommitStatus(name []byte) CommitStatus {
@@ -99,7 +108,8 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 		"log",
 		"--raw",
 		"--reverse",
-		"--pretty=format:commit %H%nAuthor: %an <%ae>%nDate: %aI%nParent: %P%n%n",
+		"--numstat",
+		"--pretty=format:commit %H%nAuthor: %an <%ae>%nDate: %aI%nParent: %P%nMessage: %b%n",
 		"--no-merges",
 	}
 	// if provided, we need to start streaming after this commit forward
@@ -186,6 +196,15 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 				commit.Email = parseAuthorEmail(string(buf[len(authorPrefix):]))
 				continue
 			}
+			if bytes.HasPrefix(buf, messagePrefix) {
+				commit.Message = string(buf[len(messagePrefix):])
+				continue
+			}
+			if bytes.HasPrefix(buf, parentPrefix) {
+				parent := string(buf[len(parentPrefix):])
+				commit.Parent = &parent
+				continue
+			}
 			if buf[0] == ':' {
 				// :100644␠100644␠d1a02ae0...␠a452aaac...␠M␉·pandora/pom.xml
 				tok1 := bytes.Split(buf, space)
@@ -221,6 +240,21 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 						Status:   toCommitStatus(action),
 						Filename: fn,
 					}
+				}
+				continue
+			}
+			tok := bytes.Split(buf, tab)
+			// handle the file stats output
+			if len(tok) == 3 {
+				adds, dels, fn := bytes.TrimSpace(tok[0]), bytes.TrimSpace(tok[1]), bytes.TrimSpace(tok[2])
+				file := commit.Files[string(fn)]
+				if bytes.Equal(adds, dash) {
+					file.Binary = true
+				} else {
+					a, _ := strconv.Atoi(string(adds))
+					d, _ := strconv.Atoi(string(dels))
+					file.Additions = a
+					file.Deletions = d
 				}
 			}
 		}

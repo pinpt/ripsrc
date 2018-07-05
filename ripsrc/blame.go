@@ -36,6 +36,7 @@ type BlameResult struct {
 	Language           string
 	Filename           string
 	Lines              []*BlameLine
+	Size               int64
 	Loc                int64
 	Sloc               int64
 	Comments           int64
@@ -248,6 +249,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		Callback: statcallback,
 	}
 	processor.CountStats(filejob)
+	filesize := int64(len(buf))
 	buf = nil
 	if !statcallback.generated {
 		var license *License
@@ -259,6 +261,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Language:           language,
 			Filename:           job.filename,
 			Lines:              lines,
+			Size:               filesize,
 			Loc:                filejob.Lines,
 			Sloc:               filejob.Code,
 			Comments:           filejob.Comment,
