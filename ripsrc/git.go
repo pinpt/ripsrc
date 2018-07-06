@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -44,28 +45,33 @@ type CommitFile struct {
 
 // Commit is a specific detail around a commit
 type Commit struct {
-	Dir     string
-	SHA     string
-	Email   string
-	Files   map[string]*CommitFile
-	Date    time.Time
-	Ordinal int64
-	Message string
-	Parent  *string
+	Dir            string
+	SHA            string
+	AuthorEmail    string
+	CommitterEmail string
+	Files          map[string]*CommitFile
+	Date           time.Time
+	Ordinal        int64
+	Message        string
+	Parent         *string
+	Signed         bool
 }
 
 var (
-	lend          = []byte("\n")
-	commitPrefix  = []byte("commit ")
-	authorPrefix  = []byte("Author: ")
-	messagePrefix = []byte("Message: ")
-	parentPrefix  = []byte("Parent: ")
-	emailRegex    = regexp.MustCompile("<(.*)>")
-	datePrefix    = []byte("Date: ")
-	space         = []byte(" ")
-	tab           = []byte("\t")
-	dash          = []byte("-")
-	rPrefix       = []byte("R")
+	lend               = []byte("\n")
+	commitPrefix       = []byte("commit ")
+	authorPrefix       = []byte("Author: ")
+	committerPrefix    = []byte("Committer: ")
+	signedEmailPrefix  = []byte("Signed-Email: ")
+	messagePrefix      = []byte("Message: ")
+	parentPrefix       = []byte("Parent: ")
+	emailRegex         = regexp.MustCompile("<(.*)>")
+	emailBracketsRegex = regexp.MustCompile("[(.*)]")
+	datePrefix         = []byte("Date: ")
+	space              = []byte(" ")
+	tab                = []byte("\t")
+	rPrefix            = []byte("R")
+	renameRe           = regexp.MustCompile("(.*)\\{(.*) => (.*)\\}(.*)")
 )
 
 func toCommitStatus(name []byte) CommitStatus {
@@ -94,10 +100,54 @@ func parseDate(d string) (time.Time, error) {
 	return t.UTC(), nil
 }
 
-func parseAuthorEmail(email string) string {
-	m := emailRegex.FindString(email)
-	// strip out the angle brackets
-	return m[1 : len(m)-1]
+func parseEmail(email string) string {
+	if emailRegex.MatchString(email) {
+		m := emailRegex.FindStringSubmatch(email)
+		// strip out the angle brackets
+		s := m[1]
+		if emailBracketsRegex.MatchString(s) {
+			m = emailBracketsRegex.FindStringSubmatch(s)
+			return m[1]
+		}
+		return s
+	}
+	return ""
+}
+
+func getFilename(fn string) (string, string, bool) {
+	if renameRe.MatchString(fn) {
+		match := renameRe.FindStringSubmatch(fn)
+		// use path.Join to remove empty directories and to correct join paths
+		// must be path not filepath since it's always unix style in git and on windows
+		// filepath will use \
+		oldfn := path.Join(match[1], match[2], match[4])
+		newfn := path.Join(match[1], match[3], match[4])
+		return newfn, oldfn, true
+	}
+	// straight rename without parts
+	s := strings.Split(fn, " => ")
+	if len(s) > 1 {
+		return s[1], s[0], true
+	}
+	return fn, fn, false
+}
+
+var (
+	tabSplitter        = regexp.MustCompile("\\t")
+	spaceSplitter      = regexp.MustCompile("[ ]")
+	whitespaceSplitter = regexp.MustCompile("\\s+")
+)
+
+func regSplit(text string, splitter *regexp.Regexp) []string {
+	indexes := splitter.FindAllStringIndex(text, -1)
+	laststart := 0
+	result := make([]string, len(indexes)+1)
+	for i, element := range indexes {
+		result[i] = text[laststart:element[0]]
+		laststart = element[1]
+	}
+	result[len(indexes)] = text[laststart:len(text)]
+	return result
 }
 
 // StreamCommits will stream all the commits to the returned channel and signal the done channel when completed
@@ -109,7 +159,7 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 		"--raw",
 		"--reverse",
 		"--numstat",
-		"--pretty=format:commit %H%nAuthor: %an <%ae>%nDate: %aI%nParent: %P%nMessage: %b%n",
+		"--pretty=format:commit %H%nCommitter: %ce%nAuthor: %ae%nSigned-Email: %GS%nDate: %aI%nParent: %P%nMessage: %s%n",
 		"--no-merges",
 	}
 	// if provided, we need to start streaming after this commit forward
@@ -130,7 +180,7 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 		if strings.Contains(errout.String(), "Not a git repository") {
 			return fmt.Errorf("not a valid git repo found in repo at %s", dir)
 		}
-		return fmt.Errorf("error running git log --all --raw --date=iso-strict in dir %s, %v", dir, err)
+		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
 	}
 	go func() {
 		defer func() {
@@ -193,7 +243,24 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 				continue
 			}
 			if bytes.HasPrefix(buf, authorPrefix) {
-				commit.Email = parseAuthorEmail(string(buf[len(authorPrefix):]))
+				commit.AuthorEmail = string(buf[len(authorPrefix):])
+				continue
+			}
+			if bytes.HasPrefix(buf, committerPrefix) {
+				commit.CommitterEmail = string(buf[len(committerPrefix):])
+				continue
+			}
+			if bytes.HasPrefix(buf, signedEmailPrefix) {
+				signedCommitLine := string(buf[len(signedEmailPrefix):])
+				if signedCommitLine != "" {
+					commit.Signed = true
+					signedEmail := parseEmail(signedCommitLine)
+					if signedEmail != "" {
+						// if signed, mark it as such as use this as the preferred email
+						commit.AuthorEmail = signedEmail
+						fmt.Println(signedEmail)
+					}
+				}
 				continue
 			}
 			if bytes.HasPrefix(buf, messagePrefix) {
@@ -246,15 +313,23 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 			tok := bytes.Split(buf, tab)
 			// handle the file stats output
 			if len(tok) == 3 {
-				adds, dels, fn := bytes.TrimSpace(tok[0]), bytes.TrimSpace(tok[1]), bytes.TrimSpace(tok[2])
-				file := commit.Files[string(fn)]
-				if bytes.Equal(adds, dash) {
+				tok := regSplit(string(buf), tabSplitter)
+				fn, oldfn, renamed := getFilename(tok[2])
+				file := commit.Files[fn]
+				if file == nil {
+					panic("logic error. cannot determine commit file named: " + fn + " for commit " + sha + " in " + dir)
+				}
+				if renamed {
+					file.RenamedFrom = oldfn
+					file.Renamed = true
+				}
+				if tok[0] == "-" {
 					file.Binary = true
 				} else {
-					a, _ := strconv.Atoi(string(adds))
-					d, _ := strconv.Atoi(string(dels))
-					file.Additions = a
-					file.Deletions = d
+					adds, _ := strconv.ParseInt(tok[0], 10, 32)
+					dels, _ := strconv.ParseInt(tok[1], 10, 32)
+					file.Additions = int(adds)
+					file.Deletions = int(dels)
 				}
 			}
 		}
