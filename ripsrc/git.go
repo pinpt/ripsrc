@@ -66,7 +66,7 @@ var (
 	messagePrefix      = []byte("Message: ")
 	parentPrefix       = []byte("Parent: ")
 	emailRegex         = regexp.MustCompile("<(.*)>")
-	emailBracketsRegex = regexp.MustCompile("[(.*)]")
+	emailBracketsRegex = regexp.MustCompile("^\\[(.*)\\]$")
 	datePrefix         = []byte("Date: ")
 	space              = []byte(" ")
 	tab                = []byte("\t")
@@ -101,10 +101,11 @@ func parseDate(d string) (time.Time, error) {
 }
 
 func parseEmail(email string) string {
+	// strip out the angle brackets
 	if emailRegex.MatchString(email) {
 		m := emailRegex.FindStringSubmatch(email)
-		// strip out the angle brackets
 		s := m[1]
+		// attempt to strip out square brackets if found
 		if emailBracketsRegex.MatchString(s) {
 			m = emailBracketsRegex.FindStringSubmatch(s)
 			return m[1]
