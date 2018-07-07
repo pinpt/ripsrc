@@ -295,7 +295,6 @@ func (p *BlameWorkerPool) process(job *filejob) {
 
 // NewBlameWorkerPool returns a new worker pool
 func NewBlameWorkerPool(ctx context.Context, count int, results chan<- BlameResult, errors chan<- error, filter *Filter) *BlameWorkerPool {
-	processor.ProcessConstants()
 	return &BlameWorkerPool{
 		ctx:        ctx,
 		count:      count,
@@ -338,4 +337,8 @@ func (p *statsProcessor) ProcessLine(job *processor.FileJob, currentLine int64, 
 		}
 	}
 	return true
+}
+
+func init() {
+	processor.ProcessConstants()
 }
