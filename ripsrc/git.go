@@ -259,7 +259,6 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 					if signedEmail != "" {
 						// if signed, mark it as such as use this as the preferred email
 						commit.AuthorEmail = signedEmail
-						fmt.Println(signedEmail)
 					}
 				}
 				continue
