@@ -41,7 +41,7 @@ gulpfile.js$
 
 # web compressed
 [-.]min.js$
-$[-.]min.css$
+[-.]min.css$
 .js.map$
 
 # Jupyter notebook checkpoint file

@@ -221,7 +221,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 	var stopped bool
 	// create a callback for blame to track all the author by line
 	callback := func(line gitblame.BlameLine) error {
-		if idx >= maxLinePerFile || len(line.Line) >= maxBytesPerLine {
+		if stopped || idx >= maxLinePerFile || len(line.Line) >= maxBytesPerLine {
 			// don't process anymore
 			stopped = true
 			return nil
