@@ -1,0 +1,195 @@
+# custom patterns to ignore (in addition) to all from github/gitignore
+
+# golang
+Godeps
+vendor/
+Gopkg.lock$
+Gopkg.toml$
+glide.lock$
+glide.yaml$
+go.mod$
+
+# rust
+Cargo.toml
+
+# ruby
+Gemfile
+.gemspec$
+
+# nodejs
+node_modules
+.webpack
+package.json$
+package-lock.json$
+.babelrc$
+.flowconfig$
+.eslintrc(.js|.json)?$
+.eslintignore$
+.npmrc$
+.bowerrc$
+.jshintrc$
+jsconfig.json$
+tsconfig.json$
+lerna.json$
+tslint.(yaml|json)$
+.vscode/
+.angular-cli.json$
+gulpfile.js$
+.jsbeautifyrc$
+.arc$
+.prettierignore$
+
+# web compressed
+[-.]min.js$
+$[-.]min.css$
+.js.map$
+
+# Jupyter notebook checkpoint file
+.ipynb_checkpoints
+
+# Java
+proguard
+.class$
+.project$
+
+# python
+__pycache__
+.pyc$
+.flake8$
+.pylintrc$
+tox.ini$
+.pydevproject$
+
+# build systems
+.circleci
+circle.yml$
+.github
+.travis.yml$
+vendor/bundle
+vendor/cache
+.shippable.yml$
+.codecov.yml$
+CMakeLists.txt$
+.gitlab-ci.yml$
+.drone.yml$
+.codecov.yml$
+appveyor.yml$
+.codeclimate.yml$
+.dockerignore$
+.npmignore$
+.cmake.in$
+Makefile.in$
+
+
+# misc files
+LICENSE(.md|.txt|.rst)?
+README(.md|.txt|.rst)?
+AUTHORS(.md|.txt|.rst)?
+CHANGELOG(.md|.txt|.rst)?
+CHANGES(.md|.txt|.rst)?
+DCO(.md|.txt|.rst)?
+CONTRIBUTING(.md|.txt|.rst)?
+VERSION(.md|.txt|.rst)?
+CODE_OF_CONDUCT(.md|.txt|.rst)?
+COPYING(.md|.txt|.rst)?
+ISSUE_TEMPLATE(.md|.txt|.rst)?
+NOTICE(.md|.txt|.rst)?
+MAINTAINERS(.md|.txt|.rst)?
+
+# compressed files
+.ar$
+.zip$
+.gz$
+.gzip$
+.Z$
+.tar$
+.bz2$
+.cab$
+.crx$
+.lz$
+
+# image files
+.eps$
+.ps$
+.gif$
+.png$
+.jpg$
+.jpeg$
+.ttf$
+.svg$
+.webp$
+.bmp$
+.ico$
+.psd$
+.tif$
+.tiff$
+.xcf$
+
+# doc files
+.pdf$
+.doc$
+.xls$
+.docx$
+.xlsx$
+.ppt$
+.pptx$
+
+# audio/video files
+.mpg$
+.mp3$
+.mp4$
+.ogg$
+.avi$
+.mov$
+.fla$
+.flv$
+.midi$
+
+# font files
+.woff$
+.woff2$
+.eot$
+.otf$
+
+# compiler files
+.a$
+.o$
+.dylib$
+.dll$
+.so$
+.pch$
+.tlb$
+.pdb$
+.ipdb$
+.nupkg$
+.ldf$
+.ndf$
+.plg$
+.h.in$
+
+# database files
+.sqlite$
+.mdf$
+.sdf$
+
+# crypto related files
+.pem$
+.p12$
+.pfx$
+.asc$
+.pkcs12$
+
+# misc files
+.deb$
+.elf$
+.jxr$
+.bin$
+.swf$
+.bin$
+.example$
+.log$
+.mailmap$
+.editorconfig$
+robots.txt$
+.vscodeignore$
+.coveragerc$

@@ -1,2 +1,3 @@
 dist
 vendor
+ripsrc/gitignore.go

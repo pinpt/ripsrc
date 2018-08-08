@@ -1,5 +1,7 @@
 package ripsrc
 
+//go:generate go run ../genignore.go
+
 import (
 	"context"
 	"fmt"
@@ -93,17 +95,9 @@ func (p *BlameWorkerPool) Submit(job *Commit) {
 	p.commitjobs <- job
 }
 
-var (
-	excludeDirs       = regexp.MustCompile("^(\\.git|CVS|\\.svn|\\.hg|Godeps|vendor|node_modules|\\.webpack)\\/")
-	excludeFiles      = regexp.MustCompile("^(\\.circleci|\\.github|\\.gitignore|\\.gitattributes|package\\.json|package-lock\\.json|yarn\\.lock|Gopkg\\.lock|Gopkg\\.toml|glide\\.lock|glide\\.yaml|\\.eslintrc|\\.babelrc|\\.eslintignore|\\.travis\\.yml|LICENSE|README|AUTHORS)")
-	excludeExtensions = regexp.MustCompile("(?i)\\.(ar|zip|gz|gzip|Z|tar|gif|png|jpg|jpeg|ttf|svg|mpg|mp4|exe|pyc|class|bmp|ico|mov|mp3|pdf|rpm|psd|rtf|tiff|webm|webp|wmv|woff|woff2|xls|xlsx|doc|docx|pptx|ppt|fla|flv|avi|bz2|cab|crx|deb|elf|eot|jxr|lz|midi|otf|swf|bin|pem|p12|pfx|a|o|obj|dylib|dll|so)$")
-)
-
 func (p *BlameWorkerPool) shouldProcess(filename string) bool {
 	// handle a set of black lists that we should automatically not process
-	return !excludeDirs.MatchString(filename) &&
-		!excludeExtensions.MatchString(filename) &&
-		!excludeFiles.MatchString(filename) &&
+	return !ignorePatterns.MatchString(filename) &&
 		!enry.IsConfiguration(filename) &&
 		!enry.IsVendor(filename) &&
 		!enry.IsDotFile(filename)
@@ -204,13 +198,34 @@ func (p *BlameWorkerPool) runFileJobs() {
 	p.filedone <- true
 }
 
+// maxLinePerFile controls how many lines of code (LOC) we will process before
+// determining that it's not a human written source file (generated, etc)
+// and skip it
+const maxLinePerFile = 40000
+
+// maxBytesPerLine controls the size of one line we will process before
+// determining that it's not a human written source file (generated, etc)
+// and skip it
+const maxBytesPerLine = 1096
+
+// maxFileSize controls the size of the overall file we will process before
+// determining that it's not a human written source file (generated, etc)
+// and skip it
+const maxFileSize = 1000000
+
 func (p *BlameWorkerPool) process(job *filejob) {
 	lines := make([]*BlameLine, 0)
 	// only read in N bytes and ignore the rest
 	var w strings.Builder
 	var idx int
+	var stopped bool
 	// create a callback for blame to track all the author by line
 	callback := func(line gitblame.BlameLine) error {
+		if idx >= maxLinePerFile || len(line.Line) >= maxBytesPerLine {
+			// don't process anymore
+			stopped = true
+			return nil
+		}
 		w.WriteString(line.Line)
 		w.WriteByte('\n')
 		if line.Email == "" {
@@ -238,6 +253,24 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			return
 		}
 		p.errors <- fmt.Errorf("error processing commit %s %s (%s). %v", job.commit.SHA, job.filename, job.commit.Dir, err)
+	}
+	// if the file is bigger than what we support, we are going to assume it's a generated file
+	if stopped || w.Len() >= maxFileSize {
+		p.results <- BlameResult{
+			Commit:             job.commit,
+			Language:           "",
+			Filename:           job.filename,
+			Lines:              nil,
+			Loc:                0,
+			Sloc:               0,
+			Comments:           0,
+			Blanks:             0,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            true,
+			Status:             job.commit.Files[job.filename].Status,
+		}
+		return
 	}
 	buf := []byte(w.String())
 	language := enry.GetLanguage(job.filename, buf)
