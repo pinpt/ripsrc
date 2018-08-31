@@ -70,7 +70,7 @@ func parseFile(filename string) ([]string, error) {
 
 func main() {
 	var files []string
-	files = append(files, "..", filepath.Join("custom_patterns.txt"))
+	files = append(files, filepath.Join("..", "custom_patterns.txt"))
 	matchers := []string{}
 	for _, filename := range files {
 		patterns, err := parseFile(filename)
