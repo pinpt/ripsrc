@@ -16,11 +16,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 )
 
 func findFiles(dir string, pattern *regexp.Regexp) ([]string, error) {
@@ -71,18 +69,7 @@ func parseFile(filename string) ([]string, error) {
 }
 
 func main() {
-	tmpdir := filepath.Join(os.TempDir(), fmt.Sprintf("%d", time.Now().Nanosecond()))
-	os.MkdirAll(tmpdir, 0755)
-	c := exec.Command("git", "clone", "https://github.com/github/gitignore.git")
-	c.Dir = tmpdir
-	if err := c.Run(); err != nil {
-		panic(err)
-	}
-	gdir := filepath.Join(tmpdir, "gitignore")
-	files, err := findFiles(gdir, regexp.MustCompile("\\.gitignore$"))
-	if err != nil {
-		panic(err)
-	}
+	var files []string
 	files = append(files, filepath.Join("..", "custom_patterns.txt"))
 	matchers := []string{}
 	for _, filename := range files {
@@ -104,5 +91,4 @@ import "regexp"
 var ignorePatterns = regexp.MustCompile(%s)
 `, regstr)
 	ioutil.WriteFile(outfile, []byte(tmpl), 0644)
-	defer os.RemoveAll(tmpdir)
 }
