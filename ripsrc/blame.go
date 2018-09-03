@@ -373,5 +373,6 @@ func (p *statsProcessor) ProcessLine(job *processor.FileJob, currentLine int64, 
 }
 
 func init() {
+	processor.DisableCheckBinary = true
 	processor.ProcessConstants()
 }
