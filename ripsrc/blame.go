@@ -45,7 +45,7 @@ type BlameResult struct {
 	Blanks             int64
 	Complexity         int64
 	WeightedComplexity float64
-	Skipped            bool
+	Skipped            string
 	License            *License
 	Status             CommitStatus
 }
@@ -62,6 +62,11 @@ type BlameWorkerPool struct {
 	results    chan<- BlameResult
 	filter     *Filter
 }
+
+const licenseFile = "possible license file"
+const removedFile = "file was removed"
+const limitExceed = "file size was %dK which exceeds limit of %dK"
+const generatedFile = "possible generated file"
 
 // Start the pool
 func (p *BlameWorkerPool) Start() {
@@ -153,7 +158,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							Blanks:             0,
 							Complexity:         0,
 							WeightedComplexity: 0,
-							Skipped:            true,
+							Skipped:            licenseFile,
 							License:            license,
 							Status:             cf.Status,
 						}
@@ -173,7 +178,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							Blanks:             0,
 							Complexity:         0,
 							WeightedComplexity: 0,
-							Skipped:            true,
+							Skipped:            removedFile,
 							License:            license,
 							Status:             cf.Status,
 						}
@@ -267,7 +272,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Blanks:             0,
 			Complexity:         0,
 			WeightedComplexity: 0,
-			Skipped:            true,
+			Skipped:            fmt.Sprintf(limitExceed, w.Len()/1024, maxFileSize/1024),
 			Status:             job.commit.Files[job.filename].Status,
 		}
 		return
@@ -320,7 +325,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Blanks:             0,
 			Complexity:         0,
 			WeightedComplexity: 0,
-			Skipped:            true,
+			Skipped:            generatedFile,
 			Status:             job.commit.Files[job.filename].Status,
 		}
 	}
