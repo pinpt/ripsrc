@@ -7,13 +7,14 @@ Gopkg.lock$
 Gopkg.toml$
 glide.lock$
 glide.yaml$
-go.mod$
+(^|/)go.mod$
+(^|/)go.sum$
 
 # rust
-Cargo.toml
+Cargo.toml$
 
 # ruby
-Gemfile
+Gemfile$
 .gemspec$
 
 # nodejs

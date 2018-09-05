@@ -63,10 +63,16 @@ type BlameWorkerPool struct {
 	filter     *Filter
 }
 
-const licenseFile = "possible license file"
-const removedFile = "file was removed"
-const limitExceed = "file size was %dK which exceeds limit of %dK"
-const generatedFile = "possible generated file"
+const (
+	blacklisted   = "file was on an exclusion list"
+	whitelisted   = "file was not on the inclusion list"
+	removedFile   = "file was removed"
+	limitExceed   = "file size was %dK which exceeds limit of %dK"
+	generatedFile = "possible generated file"
+	vendoredFile  = "file is a vendored file"
+	configFile    = "file is a config file"
+	dotFile       = "file is a dot file"
+)
 
 // Start the pool
 func (p *BlameWorkerPool) Start() {
@@ -100,42 +106,49 @@ func (p *BlameWorkerPool) Submit(job *Commit) {
 	p.commitjobs <- job
 }
 
-func (p *BlameWorkerPool) shouldProcess(filename string) bool {
+func (p *BlameWorkerPool) shouldProcess(filename string) (bool, string) {
 	// handle a set of black lists that we should automatically not process
-	return !ignorePatterns.MatchString(filename) &&
-		!enry.IsConfiguration(filename) &&
-		!enry.IsVendor(filename) &&
-		!enry.IsDotFile(filename)
+	if enry.IsVendor(filename) {
+		return false, vendoredFile
+	}
+	if enry.IsConfiguration(filename) {
+		return false, configFile
+	}
+	if enry.IsDotFile(filename) {
+		return false, dotFile
+	}
+	if ignorePatterns.MatchString(filename) {
+		return false, blacklisted
+	}
+	return true, ""
 }
 
 func (p *BlameWorkerPool) runCommitJobs() {
 	for job := range p.commitjobs {
 		if len(job.Files) > 0 {
 			for filename, cf := range job.Files {
-				var skipped bool
 				var custom bool
-				if p.shouldProcess(filename) {
+				ok, skipped := p.shouldProcess(filename)
+				if ok {
 					if p.filter != nil {
 						// if a blacklist, exclude if matched
 						if p.filter.Blacklist != nil {
 							if p.filter.Blacklist.MatchString(filename) {
-								skipped = true
+								skipped = blacklisted
 								custom = true
 							}
 						}
 						// if a whitelist, exclude if not matched
 						if p.filter.Whitelist != nil {
 							if !p.filter.Whitelist.MatchString(filename) {
-								skipped = true
+								skipped = whitelisted
 								custom = true
 							}
 						}
 					}
-				} else {
-					skipped = true
 				}
 				var license *License
-				if skipped {
+				if skipped != "" {
 					// if skipped and custom (meaning via filter), we still send it back
 					// to indicate that we skipped it
 					if !custom {
@@ -158,7 +171,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							Blanks:             0,
 							Complexity:         0,
 							WeightedComplexity: 0,
-							Skipped:            licenseFile,
+							Skipped:            skipped,
 							License:            license,
 							Status:             cf.Status,
 						}

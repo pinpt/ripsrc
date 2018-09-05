@@ -34,7 +34,7 @@ func findFiles(dir string, pattern *regexp.Regexp) ([]string, error) {
 }
 
 func format(line string) string {
-	line = strings.Replace(line, ".", "\\\\.", -1)
+	line = strings.Replace(line, ".", "\\.", -1)
 	line = strings.Replace(line, "*", "(.*?)", -1)
 	return line
 }
