@@ -14,8 +14,8 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:  "ripsrc [dir,...]",
-	Args: cobra.MinimumNArgs(1),
+	Use:  "ripsrc <dir>",
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -58,7 +58,7 @@ var rootCmd = &cobra.Command{
 			resultsDone <- true
 		}()
 		started := time.Now()
-		ripsrc.Rip(ctx, args, results, errors, filter)
+		ripsrc.Rip(ctx, args[0], results, errors, filter)
 		<-resultsDone
 		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
 	},
@@ -69,7 +69,7 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	rootCmd.Flags().String("include", "", "include filter as a regular expression")
 	rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
-	rootCmd.Flags().String("sha", "", "start streaming from sha (only works with one directory)")
+	rootCmd.Flags().String("sha", "", "start streaming from sha")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

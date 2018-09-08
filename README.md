@@ -34,7 +34,7 @@ go func() {
 		fmt.Println(result)
 	}
 }()
-ripsrc.Rip([]string{"myrepo"}, results, errors, nil)
+ripsrc.Rip(context.Background(), "myrepo_dir", results, errors, nil)
 ```
 
 ## License

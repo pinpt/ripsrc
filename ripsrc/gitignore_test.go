@@ -20,13 +20,13 @@ func TestShouldIgnore(t *testing.T) {
 	b := &BlameWorkerPool{}
 	ok, reason := b.shouldProcess("go.mod")
 	assert.False(ok)
-	assert.Equal("file go.mod was on an exclusion list", reason)
+	assert.Equal("file was on an exclusion list", reason)
 	ok, reason = b.shouldProcess(".foo")
 	assert.False(ok)
-	assert.Equal("file .foo is a dot file", reason)
+	assert.Equal("file is a dot file", reason)
 	ok, reason = b.shouldProcess("vendor/foo/bar.go")
 	assert.False(ok)
-	assert.Equal("file vendor/foo/bar.go is a vendored file", reason)
+	assert.Equal("file is a vendored file", reason)
 }
 
 func BenchmarkIgnorePatterns10(b *testing.B) {

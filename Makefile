@@ -34,3 +34,5 @@ windows: setup
 darwin: setup
 	@GOOS=darwin GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-darwin
 
+test:
+	@go test -v ./ripsrc

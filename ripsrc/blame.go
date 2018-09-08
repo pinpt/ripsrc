@@ -17,6 +17,7 @@ import (
 type filejob struct {
 	commit   *Commit
 	filename string
+	total    int
 }
 
 // BlameLine is a single line entry in blame
@@ -59,7 +60,6 @@ type BlameWorkerPool struct {
 	commitdone chan bool
 	filedone   chan bool
 	errors     chan<- error
-	results    chan<- BlameResult
 	filter     *Filter
 }
 
@@ -97,12 +97,11 @@ func (p *BlameWorkerPool) Close() {
 	for i := 0; i < p.count; i++ {
 		<-p.filedone
 	}
-	// close the results channel
-	close(p.results)
 }
 
 // Submit a job to the worker pool for async processing
-func (p *BlameWorkerPool) Submit(job *Commit) {
+func (p *BlameWorkerPool) Submit(job *Commit, callback Callback) {
+	job.callback = callback
 	p.commitjobs <- job
 }
 
@@ -125,7 +124,8 @@ func (p *BlameWorkerPool) shouldProcess(filename string) (bool, string) {
 
 func (p *BlameWorkerPool) runCommitJobs() {
 	for job := range p.commitjobs {
-		if len(job.Files) > 0 {
+		total := len(job.Files)
+		if total > 0 {
 			for filename, cf := range job.Files {
 				var custom bool
 				ok, skipped := p.shouldProcess(filename)
@@ -159,8 +159,12 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							if err == nil && !enry.IsBinary(buf) {
 								license, err = detect(filename, buf)
 							}
+							if err != nil {
+								job.callback(err, nil, total)
+								return
+							}
 						}
-						p.results <- BlameResult{
+						job.callback(nil, &BlameResult{
 							Commit:             job,
 							Language:           "",
 							Filename:           filename,
@@ -174,13 +178,13 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							Skipped:            skipped,
 							License:            license,
 							Status:             cf.Status,
-						}
+						}, total)
 					}
 				} else {
 					// if removed, we need to keep a record so we can detect it
 					// but we don't need blame, etc so just send it to the results channel
 					if cf.Status == GitFileCommitStatusRemoved {
-						p.results <- BlameResult{
+						job.callback(nil, &BlameResult{
 							Commit:             job,
 							Language:           "",
 							Filename:           filename,
@@ -194,16 +198,19 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							Skipped:            removedFile,
 							License:            license,
 							Status:             cf.Status,
-						}
+						}, total)
 					} else {
 						// only process files that aren't blacklisted
 						p.filejobs <- &filejob{
 							commit:   job,
 							filename: filename,
+							total:    total,
 						}
 					}
 				}
 			}
+		} else {
+			job.callback(nil, nil, 0)
 		}
 	}
 	p.commitdone <- true
@@ -270,11 +277,12 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			// such as src/main\320java/com  .... where \320 is ?
 			return
 		}
-		p.errors <- fmt.Errorf("error processing commit %s %s (%s). %v", job.commit.SHA, job.filename, job.commit.Dir, err)
+		job.commit.callback(fmt.Errorf("error processing commit %s %s (%s). %v", job.commit.SHA, job.filename, job.commit.Dir, err), nil, job.total)
+		return
 	}
 	// if the file is bigger than what we support, we are going to assume it's a generated file
 	if stopped || w.Len() >= maxFileSize {
-		p.results <- BlameResult{
+		job.commit.callback(nil, &BlameResult{
 			Commit:             job.commit,
 			Language:           "",
 			Filename:           job.filename,
@@ -287,7 +295,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			WeightedComplexity: 0,
 			Skipped:            fmt.Sprintf(limitExceed, w.Len()/1024, maxFileSize/1024),
 			Status:             job.commit.Files[job.filename].Status,
-		}
+		}, job.total)
 		return
 	}
 	buf := []byte(w.String())
@@ -307,7 +315,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		if possibleLicense(job.filename) {
 			license, _ = detect(job.filename, buf)
 		}
-		p.results <- BlameResult{
+		job.commit.callback(nil, &BlameResult{
 			Commit:             job.commit,
 			Language:           language,
 			Filename:           job.filename,
@@ -321,13 +329,13 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			WeightedComplexity: filejob.WeightedComplexity,
 			License:            license,
 			Status:             job.commit.Files[job.filename].Status,
-		}
+		}, job.total)
 	} else {
 		// since we received it, we need to process it ... but this means
 		// we stopped processing the file because we detected (below) that
 		// it was a generated file ... in this case, we treat it like a
 		// deleted file in case it wasn't skipped in a previous commit
-		p.results <- BlameResult{
+		job.commit.callback(nil, &BlameResult{
 			Commit:             job.commit,
 			Language:           "",
 			Filename:           job.filename,
@@ -340,12 +348,12 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			WeightedComplexity: 0,
 			Skipped:            generatedFile,
 			Status:             job.commit.Files[job.filename].Status,
-		}
+		}, job.total)
 	}
 }
 
 // NewBlameWorkerPool returns a new worker pool
-func NewBlameWorkerPool(ctx context.Context, count int, results chan<- BlameResult, errors chan<- error, filter *Filter) *BlameWorkerPool {
+func NewBlameWorkerPool(ctx context.Context, count int, errors chan<- error, filter *Filter) *BlameWorkerPool {
 	return &BlameWorkerPool{
 		ctx:        ctx,
 		count:      count,
@@ -354,7 +362,6 @@ func NewBlameWorkerPool(ctx context.Context, count int, results chan<- BlameResu
 		commitdone: make(chan bool, count),
 		filedone:   make(chan bool, count),
 		errors:     errors,
-		results:    results,
 		filter:     filter,
 	}
 }

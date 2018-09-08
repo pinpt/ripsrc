@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -43,6 +42,9 @@ type CommitFile struct {
 	Binary      bool
 }
 
+// Callback for handling the commit job
+type Callback func(err error, result *BlameResult, total int)
+
 // Commit is a specific detail around a commit
 type Commit struct {
 	Dir            string
@@ -55,6 +57,8 @@ type Commit struct {
 	Message        string
 	Parent         *string
 	Signed         bool
+
+	callback Callback
 }
 
 var (
@@ -151,8 +155,8 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 	return result
 }
 
-// StreamCommits will stream all the commits to the returned channel and signal the done channel when completed
-func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *Commit, done *sync.WaitGroup, errors chan<- error) error {
+// streamCommits will stream all the commits to the returned channel and block until completed
+func streamCommits(ctx context.Context, dir string, sha string, commits chan<- *Commit, errors chan<- error) error {
 	var errout bytes.Buffer
 	var cmd *exec.Cmd
 	args := []string{
@@ -183,10 +187,11 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 		}
 		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
 	}
+	done := make(chan bool)
 	go func() {
 		defer func() {
 			out.Close()
-			done.Done()
+			done <- true
 		}()
 		var commit *Commit
 		r := bufio.NewReader(out)
@@ -337,5 +342,6 @@ func StreamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 			commits <- commit
 		}
 	}()
+	<-done
 	return nil
 }

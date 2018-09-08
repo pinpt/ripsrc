@@ -50,6 +50,9 @@ func detect(filename string, buf []byte) (*License, error) {
 	mf := &memoryfiler{filename, buf}
 	kv, err := licensedb.Detect(mf)
 	if err != nil {
+		if err == licensedb.ErrNoLicenseFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if len(kv) > 0 {
