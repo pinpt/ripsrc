@@ -23,10 +23,10 @@ func TestShouldIgnore(t *testing.T) {
 	assert.Equal("file was on an exclusion list", reason)
 	ok, reason = b.shouldProcess(".foo")
 	assert.False(ok)
-	assert.Equal("file is a dot file", reason)
+	assert.Equal("file was a dot file", reason)
 	ok, reason = b.shouldProcess("vendor/foo/bar.go")
 	assert.False(ok)
-	assert.Equal("file is a vendored file", reason)
+	assert.Equal("file was a vendored file", reason)
 }
 
 func BenchmarkIgnorePatterns10(b *testing.B) {

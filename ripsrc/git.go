@@ -156,7 +156,7 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 }
 
 // streamCommits will stream all the commits to the returned channel and block until completed
-func streamCommits(ctx context.Context, dir string, sha string, commits chan<- *Commit, errors chan<- error) error {
+func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- *Commit, errors chan<- error) error {
 	var errout bytes.Buffer
 	var cmd *exec.Cmd
 	args := []string{
@@ -171,6 +171,7 @@ func streamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 	if sha != "" {
 		args = append(args, sha+"...")
 	}
+	// fmt.Println(args)
 	cmd = exec.CommandContext(ctx, "git", args...)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -188,6 +189,7 @@ func streamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
 	}
 	done := make(chan bool)
+	var total int
 	go func() {
 		defer func() {
 			out.Close()
@@ -229,6 +231,10 @@ func streamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 				if commit != nil { // because we send when we detect the next commit
 					commits <- commit
 				}
+				if limit > 0 && total >= limit {
+					commit = nil
+					break
+				}
 				commit = &Commit{
 					Dir:     dir,
 					SHA:     string(sha),
@@ -236,6 +242,7 @@ func streamCommits(ctx context.Context, dir string, sha string, commits chan<- *
 					Ordinal: ordinal,
 				}
 				ordinal++
+				total++
 				continue
 			}
 			if bytes.HasPrefix(buf, datePrefix) {

@@ -16,7 +16,7 @@ func TestStreamCommitsEmpty(t *testing.T) {
 	commits := make(chan *Commit, 1000)
 	errors := make(chan error, 1)
 	cwd := os.TempDir()
-	assert.NoError(streamCommits(context.Background(), cwd, "", commits, errors))
+	assert.NoError(streamCommits(context.Background(), cwd, "", 0, commits, errors))
 	select {
 	case <-commits:
 		{
@@ -42,7 +42,7 @@ func TestStreamCommitsNotEmpty(t *testing.T) {
 	c.Stdout = &buf
 	assert.NoError(c.Run())
 	shas := strings.Split(strings.TrimSpace(buf.String()), "\n")
-	assert.NoError(streamCommits(context.Background(), c.Dir, shas[1], commits, errors))
+	assert.NoError(streamCommits(context.Background(), c.Dir, shas[1], 0, commits, errors))
 	select {
 	case commit := <-commits:
 		{

@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/boyter/scc/processor"
@@ -18,6 +20,7 @@ type filejob struct {
 	commit   *Commit
 	filename string
 	total    int
+	wg       *sync.WaitGroup
 }
 
 // BlameLine is a single line entry in blame
@@ -61,6 +64,7 @@ type BlameWorkerPool struct {
 	filedone   chan bool
 	errors     chan<- error
 	filter     *Filter
+	total      int
 }
 
 const (
@@ -68,10 +72,10 @@ const (
 	whitelisted   = "file was not on the inclusion list"
 	removedFile   = "file was removed"
 	limitExceed   = "file size was %dK which exceeds limit of %dK"
-	generatedFile = "possible generated file"
-	vendoredFile  = "file is a vendored file"
-	configFile    = "file is a config file"
-	dotFile       = "file is a dot file"
+	generatedFile = "file was a generated file"
+	vendoredFile  = "file was a vendored file"
+	configFile    = "file was a config file"
+	dotFile       = "file was a dot file"
 )
 
 // Start the pool
@@ -123,11 +127,14 @@ func (p *BlameWorkerPool) shouldProcess(filename string) (bool, string) {
 }
 
 func (p *BlameWorkerPool) runCommitJobs() {
+	defer func() { p.commitdone <- true }()
 	for job := range p.commitjobs {
 		total := len(job.Files)
 		if total > 0 {
+			var wg sync.WaitGroup
 			for filename, cf := range job.Files {
 				var custom bool
+				wg.Add(1)
 				ok, skipped := p.shouldProcess(filename)
 				if ok {
 					if p.filter != nil {
@@ -161,6 +168,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							}
 							if err != nil {
 								job.callback(err, nil, total)
+								wg.Done()
 								return
 							}
 						}
@@ -179,6 +187,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							License:            license,
 							Status:             cf.Status,
 						}, total)
+						wg.Done()
 					}
 				} else {
 					// if removed, we need to keep a record so we can detect it
@@ -199,21 +208,27 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							License:            license,
 							Status:             cf.Status,
 						}, total)
+						wg.Done()
 					} else {
 						// only process files that aren't blacklisted
 						p.filejobs <- &filejob{
 							commit:   job,
 							filename: filename,
 							total:    total,
+							wg:       &wg,
 						}
 					}
 				}
+			}
+			wg.Wait()
+			p.total++
+			if p.filter != nil && p.filter.Limit > 0 && p.total >= p.filter.Limit {
+				return
 			}
 		} else {
 			job.callback(nil, nil, 0)
 		}
 	}
-	p.commitdone <- true
 }
 
 func (p *BlameWorkerPool) runFileJobs() {
@@ -239,6 +254,7 @@ const maxBytesPerLine = 1096
 const maxFileSize = 1000000
 
 func (p *BlameWorkerPool) process(job *filejob) {
+	defer job.wg.Done()
 	lines := make([]*BlameLine, 0)
 	// only read in N bytes and ignore the rest
 	var w strings.Builder
@@ -353,14 +369,14 @@ func (p *BlameWorkerPool) process(job *filejob) {
 }
 
 // NewBlameWorkerPool returns a new worker pool
-func NewBlameWorkerPool(ctx context.Context, count int, errors chan<- error, filter *Filter) *BlameWorkerPool {
+func NewBlameWorkerPool(ctx context.Context, errors chan<- error, filter *Filter) *BlameWorkerPool {
 	return &BlameWorkerPool{
 		ctx:        ctx,
-		count:      count,
-		commitjobs: make(chan *Commit, count*2),
-		filejobs:   make(chan *filejob, count*10),
-		commitdone: make(chan bool, count),
-		filedone:   make(chan bool, count),
+		count:      1,
+		commitjobs: make(chan *Commit, 1),
+		filejobs:   make(chan *filejob, 2*runtime.NumCPU()),
+		commitdone: make(chan bool, 1),
+		filedone:   make(chan bool, 1),
 		errors:     errors,
 		filter:     filter,
 	}
