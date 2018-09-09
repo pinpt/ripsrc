@@ -84,6 +84,10 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 					errors <- err
 					last = true
 				} else {
+					if result == nil {
+						wg.Done()
+						return
+					}
 					mu.Lock()
 					defer mu.Unlock()
 					arr := backlog[result.Commit.SHA]
