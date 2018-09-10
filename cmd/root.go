@@ -3,12 +3,18 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
+	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/pinpt/ripsrc/ripsrc"
+	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +33,72 @@ var rootCmd = &cobra.Command{
 				os.Exit(1)
 			}
 		}()
+		// potentially enable profiling
+		p, _ := cmd.Flags().GetString("profile")
+		var dir string
+		if p != "" {
+			dir, _ = ioutil.TempDir("", "profile")
+			defer func() {
+				fn := filepath.Join(dir, p+".pprof")
+				abs, _ := filepath.Abs(os.Args[0])
+				fmt.Printf("to view profile, run `go tool pprof --pdf %s %s`\n", abs, fn)
+			}()
+			switch p {
+			case "cpu":
+				{
+					defer profile.Start(profile.CPUProfile, profile.ProfilePath(dir), profile.Quiet).Stop()
+				}
+			case "mem":
+				{
+					defer profile.Start(profile.MemProfile, profile.ProfilePath(dir), profile.Quiet).Stop()
+				}
+			case "trace":
+				{
+					defer profile.Start(profile.TraceProfile, profile.ProfilePath(dir), profile.Quiet).Stop()
+				}
+			case "block":
+				{
+					defer profile.Start(profile.BlockProfile, profile.ProfilePath(dir), profile.Quiet).Stop()
+				}
+			case "mutex":
+				{
+					defer profile.Start(profile.MutexProfile, profile.ProfilePath(dir), profile.Quiet).Stop()
+				}
+			default:
+				{
+					panic("unexpected profile: " + p)
+				}
+			}
+		}
+		dumpmem, _ := cmd.Flags().GetBool("dump-mem")
+		if dumpmem {
+			go func() {
+				var s runtime.MemStats
+				var c int
+				os.MkdirAll("profile", 0755)
+				dump := func() {
+					c++
+					runtime.ReadMemStats(&s)
+					fmt.Println(strings.Repeat("*", 80))
+					fmt.Println("Alloc       : ", s.Alloc)
+					fmt.Println("Total Alloc : ", s.TotalAlloc)
+					fmt.Println("Alive       : ", s.Mallocs-s.Frees)
+					fmt.Println(strings.Repeat("*", 80))
+					f, _ := os.Create(fmt.Sprintf("profile/profile.%d.pb.gz", c))
+					defer f.Close()
+					runtime.GC()
+					pprof.WriteHeapProfile(f)
+				}
+				for {
+					select {
+					case <-time.After(5 * time.Second):
+						dump()
+					case <-ctx.Done():
+						dump()
+					}
+				}
+			}()
+		}
 		var filter *ripsrc.Filter
 		include, _ := cmd.Flags().GetString("include")
 		exclude, _ := cmd.Flags().GetString("exclude")
@@ -70,6 +142,8 @@ func Execute() {
 	rootCmd.Flags().String("include", "", "include filter as a regular expression")
 	rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
 	rootCmd.Flags().String("sha", "", "start streaming from sha")
+	rootCmd.Flags().Bool("dump-mem", false, "dump memory stats every 5 sec")
+	rootCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

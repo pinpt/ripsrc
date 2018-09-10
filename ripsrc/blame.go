@@ -256,7 +256,8 @@ func (p *BlameWorkerPool) process(job *filejob) {
 	defer job.wg.Done()
 	lines := make([]*BlameLine, 0)
 	// only read in N bytes and ignore the rest
-	var w strings.Builder
+	w := getStringBuilder()
+	defer putStringBuilder(w)
 	var idx int
 	var stopped bool
 	// create a callback for blame to track all the author by line
@@ -313,6 +314,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		}, job.total)
 		return
 	}
+	filesize := int64(w.Len())
 	buf := []byte(w.String())
 	language := enry.GetLanguage(job.filename, buf)
 	statcallback := &statsProcessor{lines: lines}
@@ -323,8 +325,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		Callback: statcallback,
 	}
 	processor.CountStats(filejob)
-	filesize := int64(len(buf))
-	buf = nil
+	filejob.Content = nil
 	if !statcallback.generated {
 		var license *License
 		if possibleLicense(job.filename) {

@@ -49,6 +49,10 @@
   name = "gopkg.in/src-d/enry.v1"
   version = "1.6.4"
 
+[[constraint]]
+  name = "github.com/pkg/profile"
+  version = "1.2.1"
+
 [prune]
   go-tests = true
   unused-packages = true

@@ -178,6 +178,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	if err != nil {
 		return err
 	}
+	defer out.Close()
 	cmd.Dir = dir
 	cmd.Stderr = errout
 	if err := cmd.Start(); err != nil {
@@ -193,7 +194,6 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	var total int
 	go func() {
 		defer func() {
-			out.Close()
 			done <- true
 		}()
 		var commit *Commit

@@ -11,7 +11,7 @@ import (
 )
 
 // buffer pool to reduce GC
-var buffers = sync.Pool{
+var bufferPool = sync.Pool{
 	// New is called when a new instance is needed
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -20,13 +20,32 @@ var buffers = sync.Pool{
 
 // getBuffer fetches a buffer from the pool
 func getBuffer() *bytes.Buffer {
-	return buffers.Get().(*bytes.Buffer)
+	return bufferPool.Get().(*bytes.Buffer)
 }
 
 // putBuffer returns a buffer to the pool
 func putBuffer(buf *bytes.Buffer) {
 	buf.Reset()
-	buffers.Put(buf)
+	bufferPool.Put(buf)
+}
+
+// string pool to reduce GC
+var stringPool = sync.Pool{
+	// New is called when a new instance is needed
+	New: func() interface{} {
+		return new(strings.Builder)
+	},
+}
+
+// getStringBuilder fetches a buffer from the pool
+func getStringBuilder() *strings.Builder {
+	return stringPool.Get().(*strings.Builder)
+}
+
+// putStringBuilder returns a buffer to the pool
+func putStringBuilder(buf *strings.Builder) {
+	buf.Reset()
+	stringPool.Put(buf)
 }
 
 type limitedWriter struct {
