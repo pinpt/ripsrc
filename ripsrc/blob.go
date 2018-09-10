@@ -7,7 +7,27 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
+
+// buffer pool to reduce GC
+var buffers = sync.Pool{
+	// New is called when a new instance is needed
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+// getBuffer fetches a buffer from the pool
+func getBuffer() *bytes.Buffer {
+	return buffers.Get().(*bytes.Buffer)
+}
+
+// putBuffer returns a buffer to the pool
+func putBuffer(buf *bytes.Buffer) {
+	buf.Reset()
+	buffers.Put(buf)
+}
 
 type limitedWriter struct {
 	max  int64
@@ -44,11 +64,12 @@ func (w *limitedWriter) Bytes() []byte {
 }
 
 func getBlobRef(ctx context.Context, dir string, sha string, filename string) (string, error) {
-	var buf bytes.Buffer
+	buf := getBuffer()
+	defer putBuffer(buf)
 	cmd := exec.CommandContext(ctx, "git", "ls-tree", sha, "--", filename)
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
-	cmd.Stdout = &buf
+	cmd.Stdout = buf
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}

@@ -53,7 +53,7 @@ type Filter struct {
 func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors chan<- error, filter *Filter) {
 	pool := NewBlameWorkerPool(ctx, errors, filter)
 	pool.Start()
-	commits := make(chan *Commit, 1000)
+	commits := make(chan *Commit, 1)
 	gitdirs, err := findGitDir(dir)
 	if err != nil {
 		errors <- fmt.Errorf("error finding git dir from %v. %v", dir, err)
@@ -68,12 +68,12 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 	var mu sync.Mutex
 	// start the goroutine for processing before we start processing
 	go func() {
-		var wg sync.WaitGroup
 		// feed each commit into our worker pool for blame processing
 		for commit := range commits {
 			mu.Lock()
 			orderedShas = append(orderedShas, commit.SHA)
 			mu.Unlock()
+			var wg sync.WaitGroup
 			wg.Add(1)
 			// submit will send the commit job for async processing ... however, we need to stream them
 			// back to the results channel in order that they were originally committed so we're going to
@@ -124,8 +124,8 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 					wg.Done()
 				}
 			})
+			wg.Wait()
 		}
-		wg.Wait()
 		after <- true
 	}()
 	for _, gitdir := range gitdirs {

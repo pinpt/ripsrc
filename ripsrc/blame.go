@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -374,7 +373,7 @@ func NewBlameWorkerPool(ctx context.Context, errors chan<- error, filter *Filter
 		ctx:        ctx,
 		count:      1,
 		commitjobs: make(chan *Commit, 1),
-		filejobs:   make(chan *filejob, 2*runtime.NumCPU()),
+		filejobs:   make(chan *filejob, 2),
 		commitdone: make(chan bool, 1),
 		filedone:   make(chan bool, 1),
 		errors:     errors,
@@ -406,9 +405,11 @@ func (p *statsProcessor) ProcessLine(job *processor.FileJob, currentLine int64, 
 	if l.line != nil && l.Comment {
 		var src = *l.line
 		if generatedRegexp.MatchString(src) {
+			l.line = nil
 			p.generated = true
 			return false
 		}
+		l.line = nil
 	}
 	return true
 }

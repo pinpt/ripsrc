@@ -157,7 +157,8 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 
 // streamCommits will stream all the commits to the returned channel and block until completed
 func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- *Commit, errors chan<- error) error {
-	var errout bytes.Buffer
+	errout := getBuffer()
+	defer putBuffer(errout)
 	var cmd *exec.Cmd
 	args := []string{
 		"log",
@@ -178,7 +179,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		return err
 	}
 	cmd.Dir = dir
-	cmd.Stderr = &errout
+	cmd.Stderr = errout
 	if err := cmd.Start(); err != nil {
 		if strings.Contains(errout.String(), "does not have any commits yet") {
 			return fmt.Errorf("no commits found in repo at %s", dir)
