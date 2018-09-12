@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os/exec"
 	"path"
 	"regexp"
@@ -156,7 +155,7 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 }
 
 // streamCommits will stream all the commits to the returned channel and block until completed
-func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- *Commit, errors chan<- error) error {
+func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- Commit, errors chan<- error) error {
 	errout := getBuffer()
 	defer putBuffer(errout)
 	var cmd *exec.Cmd
@@ -197,27 +196,16 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			done <- true
 		}()
 		var commit *Commit
-		r := bufio.NewReader(out)
+		r := bufio.NewReaderSize(out, 200) // most lines are pretty small for the result based on test sampling of sizes
 		ordinal := time.Now().Unix()
-		for {
-			buf, err := r.ReadBytes(lend[0])
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				errors <- err
-				return
-			}
-
-			// see if our context is cancelled
+		s := bufio.NewScanner(r)
+		for s.Scan() {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				break
 			}
-
-			buf = buf[0 : len(buf)-1]
+			buf := s.Bytes()
 			if len(buf) == 0 {
 				continue
 			}
@@ -230,7 +218,8 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				}
 				// send the old commit and create a new one
 				if commit != nil { // because we send when we detect the next commit
-					commits <- commit
+					commits <- *commit
+					commit = nil
 				}
 				if limit > 0 && total >= limit {
 					commit = nil
@@ -347,7 +336,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			}
 		}
 		if commit != nil {
-			commits <- commit
+			commits <- *commit
 		}
 	}()
 	<-done

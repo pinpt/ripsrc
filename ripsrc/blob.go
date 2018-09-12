@@ -29,25 +29,6 @@ func putBuffer(buf *bytes.Buffer) {
 	bufferPool.Put(buf)
 }
 
-// string pool to reduce GC
-var stringPool = sync.Pool{
-	// New is called when a new instance is needed
-	New: func() interface{} {
-		return new(strings.Builder)
-	},
-}
-
-// getStringBuilder fetches a buffer from the pool
-func getStringBuilder() *strings.Builder {
-	return stringPool.Get().(*strings.Builder)
-}
-
-// putStringBuilder returns a buffer to the pool
-func putStringBuilder(buf *strings.Builder) {
-	buf.Reset()
-	stringPool.Put(buf)
-}
-
 type limitedWriter struct {
 	max  int64
 	size int64
@@ -63,13 +44,14 @@ func (w *limitedWriter) Write(in []byte) (int, error) {
 			if r > int64(l) {
 				r = int64(l)
 			}
-			in = in[0:r]
+			if _, err := w.buf.Write(in[0:r]); err != nil {
+				return 0, err
+			}
 			l = int(r)
 		} else {
 			l = 0
 		}
-	}
-	if l > 0 {
+	} else if l > 0 {
 		if _, err := w.buf.Write(in); err != nil {
 			return 0, err
 		}
@@ -119,5 +101,7 @@ func getBlob(ctx context.Context, dir string, sha string, filename string) ([]by
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	newbuf := make([]byte, buf.size)
+	copy(newbuf, buf.buf.Bytes())
+	return newbuf, nil
 }

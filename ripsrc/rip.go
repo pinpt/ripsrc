@@ -53,21 +53,20 @@ type Filter struct {
 func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors chan<- error, filter *Filter) {
 	pool := NewBlameWorkerPool(ctx, errors, filter)
 	pool.Start()
-	commits := make(chan *Commit, 1)
+	commits := make(chan Commit, 1000)
 	gitdirs, err := findGitDir(dir)
 	if err != nil {
 		errors <- fmt.Errorf("error finding git dir from %v. %v", dir, err)
 		return
 	}
-	// setup a goroutine to start processing commits
-	var count int
 	after := make(chan bool, 1)
-	orderedShas := make([]string, 0)
-	var currentShaIndex int
-	backlog := make(map[string][]*BlameResult)
-	var mu sync.Mutex
 	// start the goroutine for processing before we start processing
 	go func() {
+		var count int
+		orderedShas := make([]string, 0)
+		var currentShaIndex int
+		backlog := make(map[string][]*BlameResult)
+		var mu sync.Mutex
 		// feed each commit into our worker pool for blame processing
 		for commit := range commits {
 			mu.Lock()
@@ -113,10 +112,15 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 						}
 						// delete the save memory
 						delete(backlog, result.Commit.SHA)
+						arr = nil
 						// advance to the next sha
 						currentShaIndex++
+						if len(backlog) != 0 {
+							panic("backlog should be empty")
+						}
 					}
 				}
+				result = nil
 				if last {
 					// we're done with this commit once we get to the end
 					// we do this just to make sure all commits are processed and written
@@ -128,6 +132,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 		}
 		after <- true
 	}()
+	// setup a goroutine to start processing commits
 	for _, gitdir := range gitdirs {
 		var sha string
 		var limit int

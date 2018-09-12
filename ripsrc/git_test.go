@@ -13,7 +13,7 @@ import (
 
 func TestStreamCommitsEmpty(t *testing.T) {
 	assert := assert.New(t)
-	commits := make(chan *Commit, 1000)
+	commits := make(chan Commit, 1000)
 	errors := make(chan error, 1)
 	cwd := os.TempDir()
 	assert.NoError(streamCommits(context.Background(), cwd, "", 0, commits, errors))
@@ -33,7 +33,7 @@ func TestStreamCommitsEmpty(t *testing.T) {
 
 func TestStreamCommitsNotEmpty(t *testing.T) {
 	assert := assert.New(t)
-	commits := make(chan *Commit, 1)
+	commits := make(chan Commit, 1)
 	errors := make(chan error, 1)
 	c := exec.Command("git", "log", "-n", "2", "--format=%H", "--no-merges")
 	var buf strings.Builder

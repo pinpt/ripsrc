@@ -47,7 +47,11 @@
 
 [[constraint]]
   name = "gopkg.in/src-d/enry.v1"
-  version = "1.6.4"
+  version = "1.6.5"
+
+[[constraint]]
+  name = "gopkg.in/src-d/go-license-detector.v2"
+  version = "v2"
 
 [[constraint]]
   name = "github.com/pkg/profile"
@@ -56,3 +60,4 @@
 [prune]
   go-tests = true
   unused-packages = true
+  non-go = true

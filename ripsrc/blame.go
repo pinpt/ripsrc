@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +18,7 @@ import (
 )
 
 type filejob struct {
-	commit   *Commit
+	commit   Commit
 	filename string
 	total    int
 	wg       *sync.WaitGroup
@@ -37,7 +39,7 @@ type BlameLine struct {
 
 // BlameResult holds details about the blame result
 type BlameResult struct {
-	Commit             *Commit
+	Commit             Commit
 	Language           string
 	Filename           string
 	Lines              []*BlameLine
@@ -57,8 +59,8 @@ type BlameResult struct {
 type BlameWorkerPool struct {
 	ctx        context.Context
 	count      int
-	commitjobs chan *Commit
-	filejobs   chan *filejob
+	commitjobs chan Commit
+	filejobs   chan filejob
 	commitdone chan bool
 	filedone   chan bool
 	errors     chan<- error
@@ -103,7 +105,7 @@ func (p *BlameWorkerPool) Close() {
 }
 
 // Submit a job to the worker pool for async processing
-func (p *BlameWorkerPool) Submit(job *Commit, callback Callback) {
+func (p *BlameWorkerPool) Submit(job Commit, callback Callback) {
 	job.callback = callback
 	p.commitjobs <- job
 }
@@ -210,7 +212,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 						wg.Done()
 					} else {
 						// only process files that aren't blacklisted
-						p.filejobs <- &filejob{
+						p.filejobs <- filejob{
 							commit:   job,
 							filename: filename,
 							total:    total,
@@ -252,17 +254,18 @@ const maxBytesPerLine = 1096
 // and skip it
 const maxFileSize = 1000000
 
-func (p *BlameWorkerPool) process(job *filejob) {
+func (p *BlameWorkerPool) process(job filejob) {
 	defer job.wg.Done()
 	lines := make([]*BlameLine, 0)
 	// only read in N bytes and ignore the rest
-	w := getStringBuilder()
-	defer putStringBuilder(w)
+	w := getBuffer()
+	defer putBuffer(w)
 	var idx int
+	var filesize int
 	var stopped bool
 	// create a callback for blame to track all the author by line
 	callback := func(line gitblame.BlameLine) error {
-		if stopped || idx >= maxLinePerFile || len(line.Line) >= maxBytesPerLine {
+		if stopped || idx >= maxLinePerFile || len(line.Line) >= maxBytesPerLine || len(line.Line)+filesize >= maxFileSize {
 			// don't process anymore
 			stopped = true
 			return nil
@@ -273,6 +276,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			line.Email = line.Name
 		}
 		idx++
+		filesize += len(line.Line) + 1 // line feed
 		bline := &BlameLine{
 			Name:  line.Name,
 			Email: line.Email,
@@ -297,7 +301,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		return
 	}
 	// if the file is bigger than what we support, we are going to assume it's a generated file
-	if stopped || w.Len() >= maxFileSize {
+	if stopped {
 		job.commit.callback(nil, &BlameResult{
 			Commit:             job.commit,
 			Language:           "",
@@ -314,8 +318,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		}, job.total)
 		return
 	}
-	filesize := int64(w.Len())
-	buf := []byte(w.String())
+	buf := w.Bytes()
 	language := enry.GetLanguage(job.filename, buf)
 	statcallback := &statsProcessor{lines: lines}
 	filejob := &processor.FileJob{
@@ -331,12 +334,13 @@ func (p *BlameWorkerPool) process(job *filejob) {
 		if possibleLicense(job.filename) {
 			license, _ = detect(job.filename, buf)
 		}
+		buf = nil
 		job.commit.callback(nil, &BlameResult{
 			Commit:             job.commit,
 			Language:           language,
 			Filename:           job.filename,
-			Lines:              lines,
-			Size:               filesize,
+			Lines:              nil,
+			Size:               int64(filesize),
 			Loc:                filejob.Lines,
 			Sloc:               filejob.Code,
 			Comments:           filejob.Comment,
@@ -347,6 +351,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Status:             job.commit.Files[job.filename].Status,
 		}, job.total)
 	} else {
+		buf = nil
 		// since we received it, we need to process it ... but this means
 		// we stopped processing the file because we detected (below) that
 		// it was a generated file ... in this case, we treat it like a
@@ -366,6 +371,7 @@ func (p *BlameWorkerPool) process(job *filejob) {
 			Status:             job.commit.Files[job.filename].Status,
 		}, job.total)
 	}
+	lines = nil
 }
 
 // NewBlameWorkerPool returns a new worker pool
@@ -373,8 +379,8 @@ func NewBlameWorkerPool(ctx context.Context, errors chan<- error, filter *Filter
 	return &BlameWorkerPool{
 		ctx:        ctx,
 		count:      1,
-		commitjobs: make(chan *Commit, 1),
-		filejobs:   make(chan *filejob, 2),
+		commitjobs: make(chan Commit, 10),
+		filejobs:   make(chan filejob, runtime.NumCPU()),
 		commitdone: make(chan bool, 1),
 		filedone:   make(chan bool, 1),
 		errors:     errors,
@@ -417,5 +423,11 @@ func (p *statsProcessor) ProcessLine(job *processor.FileJob, currentLine int64, 
 
 func init() {
 	processor.DisableCheckBinary = true
+	// the ProcessConstants in scc turns off GC since it is mainly used by their cmdline. however, this causes
+	// memory leaks. we need to check it and then reset it afterwards.  we first fetch the current value in case
+	// it's overriden from the GOGC env.
+	currentGC := debug.SetGCPercent(0)
 	processor.ProcessConstants()
+	// now we need to reset it to the original GC value
+	debug.SetGCPercent(currentGC)
 }
