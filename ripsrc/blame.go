@@ -339,7 +339,7 @@ func (p *BlameWorkerPool) process(job filejob) {
 			Commit:             job.commit,
 			Language:           language,
 			Filename:           job.filename,
-			Lines:              nil,
+			Lines:              lines,
 			Size:               int64(filesize),
 			Loc:                filejob.Lines,
 			Sloc:               filejob.Code,
