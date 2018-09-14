@@ -55,17 +55,29 @@ type BlameResult struct {
 	Status             CommitStatus
 }
 
+// tuple for our exclusion check decision
+type exclusionDecision struct {
+	process bool
+	reason  string
+}
+
 // BlameWorkerPool is worker pool for processing blame
 type BlameWorkerPool struct {
-	ctx        context.Context
-	count      int
-	commitjobs chan Commit
-	filejobs   chan filejob
-	commitdone chan bool
-	filedone   chan bool
-	errors     chan<- error
-	filter     *Filter
-	total      int
+	ctx            context.Context
+	commitjobcount int
+	filejobcount   int
+	commitjobs     chan Commit
+	filejobs       chan filejob
+	commitdone     chan bool
+	filedone       chan bool
+	errors         chan<- error
+	filter         *Filter
+	total          int
+
+	// since commits will often have the same files that we process over and over
+	// we can cache the filename exclusion rules to make checking much faster
+	// since some of the rule checks are quite expensive regexps, etc.
+	hashedExclusions map[string]*exclusionDecision
 }
 
 const (
@@ -81,8 +93,10 @@ const (
 
 // Start the pool
 func (p *BlameWorkerPool) Start() {
-	for i := 0; i < p.count; i++ {
+	for i := 0; i < p.commitjobcount; i++ {
 		go p.runCommitJobs()
+	}
+	for i := 0; i < p.filejobcount; i++ {
 		go p.runFileJobs()
 	}
 }
@@ -93,13 +107,13 @@ func (p *BlameWorkerPool) Close() {
 	close(p.commitjobs)
 	// now wait for all the commit jobs to finish before
 	// we close the file jobs channel
-	for i := 0; i < p.count; i++ {
+	for i := 0; i < p.commitjobcount; i++ {
 		<-p.commitdone
 	}
 	// close the file jobs channel
 	close(p.filejobs)
 	// now wait for all the file jobs to finish
-	for i := 0; i < p.count; i++ {
+	for i := 0; i < p.filejobcount; i++ {
 		<-p.filedone
 	}
 }
@@ -110,20 +124,32 @@ func (p *BlameWorkerPool) Submit(job Commit, callback Callback) {
 	p.commitjobs <- job
 }
 
+// handle a set of black lists that we should automatically not process
 func (p *BlameWorkerPool) shouldProcess(filename string) (bool, string) {
-	// handle a set of black lists that we should automatically not process
-	if enry.IsVendor(filename) {
-		return false, vendoredFile
+	// check the cache since some of these lookups are a bit expensive and
+	// since filenames within the same repo are usually repeated with many
+	// commits and we can reuse the previous decision in subsequent commits
+	decision := p.hashedExclusions[filename]
+	if decision != nil {
+		return decision.process, decision.reason
 	}
 	if enry.IsConfiguration(filename) {
+		p.hashedExclusions[filename] = &exclusionDecision{false, configFile}
 		return false, configFile
 	}
 	if enry.IsDotFile(filename) {
+		p.hashedExclusions[filename] = &exclusionDecision{false, dotFile}
 		return false, dotFile
 	}
 	if ignorePatterns.MatchString(filename) {
+		p.hashedExclusions[filename] = &exclusionDecision{false, blacklisted}
 		return false, blacklisted
 	}
+	if enry.IsVendor(filename) {
+		p.hashedExclusions[filename] = &exclusionDecision{false, vendoredFile}
+		return false, vendoredFile
+	}
+	p.hashedExclusions[filename] = &exclusionDecision{true, ""}
 	return true, ""
 }
 
@@ -131,11 +157,12 @@ func (p *BlameWorkerPool) runCommitJobs() {
 	defer func() { p.commitdone <- true }()
 	for job := range p.commitjobs {
 		total := len(job.Files)
+		// small optimization if there are no files
 		if total > 0 {
 			var wg sync.WaitGroup
+			wg.Add(total)
 			for filename, cf := range job.Files {
 				var custom bool
-				wg.Add(1)
 				ok, skipped := p.shouldProcess(filename)
 				if ok {
 					if p.filter != nil {
@@ -143,6 +170,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 						if p.filter.Blacklist != nil {
 							if p.filter.Blacklist.MatchString(filename) {
 								skipped = blacklisted
+								p.hashedExclusions[filename] = &exclusionDecision{false, blacklisted}
 								custom = true
 							}
 						}
@@ -150,6 +178,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 						if p.filter.Whitelist != nil {
 							if !p.filter.Whitelist.MatchString(filename) {
 								skipped = whitelisted
+								p.hashedExclusions[filename] = &exclusionDecision{false, whitelisted}
 								custom = true
 							}
 						}
@@ -164,13 +193,13 @@ func (p *BlameWorkerPool) runCommitJobs() {
 						// looks like a possible license file
 						if cf.Status != GitFileCommitStatusRemoved && possibleLicense(filename) {
 							buf, err := getBlob(p.ctx, job.Dir, job.SHA, filename)
-							if err == nil && !enry.IsBinary(buf) {
-								license, err = detect(filename, buf)
-							}
 							if err != nil {
 								job.callback(err, nil, total)
 								wg.Done()
 								return
+							}
+							if !enry.IsBinary(buf) {
+								license, err = detect(filename, buf)
 							}
 						}
 						job.callback(nil, &BlameResult{
@@ -212,6 +241,8 @@ func (p *BlameWorkerPool) runCommitJobs() {
 						wg.Done()
 					} else {
 						// only process files that aren't blacklisted
+						// don't call wg.Done here because it will be
+						// called when the file job completes
 						p.filejobs <- filejob{
 							commit:   job,
 							filename: filename,
@@ -221,8 +252,10 @@ func (p *BlameWorkerPool) runCommitJobs() {
 					}
 				}
 			}
-			wg.Wait()
 			p.total++
+			// we need to wait for all the file jobs to complete before going to the
+			// next commit so that they stay ordered
+			wg.Wait()
 			if p.filter != nil && p.filter.Limit > 0 && p.total >= p.filter.Limit {
 				return
 			}
@@ -255,6 +288,7 @@ const maxBytesPerLine = 1096
 const maxFileSize = 1000000
 
 func (p *BlameWorkerPool) process(job filejob) {
+	// fmt.Println("PROCESS", job.commit.SHA, job.filename)
 	defer job.wg.Done()
 	lines := make([]*BlameLine, 0)
 	// only read in N bytes and ignore the rest
@@ -376,15 +410,18 @@ func (p *BlameWorkerPool) process(job filejob) {
 
 // NewBlameWorkerPool returns a new worker pool
 func NewBlameWorkerPool(ctx context.Context, errors chan<- error, filter *Filter) *BlameWorkerPool {
+	filejobcount := runtime.NumCPU()
 	return &BlameWorkerPool{
-		ctx:        ctx,
-		count:      1,
-		commitjobs: make(chan Commit, 10),
-		filejobs:   make(chan filejob, runtime.NumCPU()),
-		commitdone: make(chan bool, 1),
-		filedone:   make(chan bool, 1),
-		errors:     errors,
-		filter:     filter,
+		ctx:              ctx,
+		commitjobcount:   1,                 // we can only process one at a time
+		filejobcount:     filejobcount,      // we can keep CPU busy if commit has multiple files
+		commitjobs:       make(chan Commit), // we can only process one at a time
+		filejobs:         make(chan filejob, filejobcount*2),
+		commitdone:       make(chan bool, 1),
+		filedone:         make(chan bool, 1),
+		errors:           errors,
+		filter:           filter,
+		hashedExclusions: make(map[string]*exclusionDecision),
 	}
 }
 

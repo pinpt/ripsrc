@@ -59,78 +59,69 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 		errors <- fmt.Errorf("error finding git dir from %v. %v", dir, err)
 		return
 	}
-	after := make(chan bool, 1)
+	after := make(chan bool)
 	// start the goroutine for processing before we start processing
 	go func() {
+		defer func() { after <- true }()
 		var count int
-		orderedShas := make([]string, 0)
-		var currentShaIndex int
 		backlog := make(map[string][]*BlameResult)
 		var mu sync.Mutex
 		// feed each commit into our worker pool for blame processing
 		for commit := range commits {
-			mu.Lock()
-			orderedShas = append(orderedShas, commit.SHA)
-			mu.Unlock()
-			var wg sync.WaitGroup
-			wg.Add(1)
+			total := len(commit.Files)
+			var filecount int
+			currentSha := commit.SHA
+			res := make(chan BlameResult, total)
 			// submit will send the commit job for async processing ... however, we need to stream them
 			// back to the results channel in order that they were originally committed so we're going to
 			// have to reorder the results and cache the pending ones that finish before the right order
 			pool.Submit(commit, func(err error, result *BlameResult, total int) {
-				var last bool
+				mu.Lock()
+				defer mu.Unlock()
+				// fmt.Println("RESULT", result.Commit.SHA, result.Filename, filecount+1, total, "->", currentSha)
+				filecount++
+				last := total == filecount
 				if err != nil {
 					errors <- err
-					last = true
 				} else {
-					if result == nil {
-						wg.Done()
-						return
-					}
-					mu.Lock()
-					defer mu.Unlock()
-					arr := backlog[result.Commit.SHA]
-					if arr == nil {
-						arr = make([]*BlameResult, 0)
-					}
-					arr = append(arr, result)
-					backlog[result.Commit.SHA] = arr
-					last = total == len(arr)
-					currentSha := orderedShas[currentShaIndex]
-					// fmt.Println("last", last, "count", len(arr), "total", total, "currentShaIndex", currentShaIndex, "filename", result.Filename, "sha", result.Commit.SHA, "current", currentSha)
-					// if the current sha matches the one we're looking for and it's the last result
-					// we can go ahead and flush (send) and move the index forward to the next sha we're looking for
-					if currentSha == result.Commit.SHA && last {
-						// sort so it's predictable for the order of the filename
-						sort.Slice(arr, func(i, j int) bool {
-							return arr[i].Filename < arr[j].Filename
-						})
-						// fmt.Println(">>>", currentSha)
-						for _, r := range arr {
-							results <- *r
-							count++
+					if result != nil {
+						arr := backlog[result.Commit.SHA]
+						if arr == nil {
+							arr = make([]*BlameResult, 0)
 						}
-						// delete the save memory
-						delete(backlog, result.Commit.SHA)
-						arr = nil
-						// advance to the next sha
-						currentShaIndex++
-						if len(backlog) != 0 {
-							panic("backlog should be empty")
+						arr = append(arr, result)
+						backlog[result.Commit.SHA] = arr
+						if currentSha != result.Commit.SHA {
+							panic("sha out of order: expected:" + result.Commit.SHA + " but was:" + currentSha) // logic check
+						}
+						// if the current sha matches the one we're looking for and it's the last result
+						// we can go ahead and flush (send) and move the index forward to the next sha we're looking for
+						if last {
+							// sort so it's predictable for the order of the filename
+							sort.Slice(arr, func(i, j int) bool {
+								return arr[i].Filename < arr[j].Filename
+							})
+							for _, r := range arr {
+								res <- *r
+								count++
+							}
+							close(res)
+							// delete the save memory
+							delete(backlog, result.Commit.SHA)
+							if len(backlog) != 0 {
+								panic("backlog should be empty") // logic check
+							}
+							arr = nil
 						}
 					}
-				}
-				result = nil
-				if last {
-					// we're done with this commit once we get to the end
-					// we do this just to make sure all commits are processed and written
-					// to the results channel before we finish and return
-					wg.Done()
 				}
 			})
-			wg.Wait()
+			// wait for all files in the commit to be processed before continuing so that commits
+			// are ordered properly
+			for i := 0; i < total; i++ {
+				results <- <-res
+			}
 		}
-		after <- true
 	}()
 	// setup a goroutine to start processing commits
 	for _, gitdir := range gitdirs {
