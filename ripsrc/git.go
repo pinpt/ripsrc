@@ -74,6 +74,8 @@ var (
 	space              = []byte(" ")
 	tab                = []byte("\t")
 	rPrefix            = []byte("R")
+	filenameMask       = []byte("100644")
+	deletedMask        = []byte("000000")
 	renameRe           = regexp.MustCompile("(.*)\\{(.*) => (.*)\\}(.*)")
 )
 
@@ -209,6 +211,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			if len(buf) == 0 {
 				continue
 			}
+			// fmt.Println(string(buf))
 			if bytes.HasPrefix(buf, commitPrefix) {
 				sha := string(buf[len(commitPrefix):])
 				i := strings.Index(sha, " ")
@@ -277,6 +280,11 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			if buf[0] == ':' {
 				// :100644␠100644␠d1a02ae0...␠a452aaac...␠M␉·pandora/pom.xml
 				tok1 := bytes.Split(buf, space)
+				mask := tok1[1]
+				// if the mask isn't a regular file or deleted file, skip it
+				if !bytes.Equal(mask, filenameMask) && !bytes.Equal(mask, deletedMask) {
+					continue
+				}
 				tok2 := bytes.Split(bytes.Join(tok1[4:], space), tab)
 				action := tok2[0]
 				paths := tok2[1:]
@@ -319,7 +327,8 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				fn, oldfn, renamed := getFilename(tok[2])
 				file := commit.Files[fn]
 				if file == nil {
-					panic("logic error. cannot determine commit file named: " + fn + " for commit " + sha + " in " + dir)
+					// this is OK, just means it was a special entry such as directory only, skip this one
+					continue
 				}
 				if renamed {
 					file.RenamedFrom = oldfn
