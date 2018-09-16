@@ -81,15 +81,16 @@ type BlameWorkerPool struct {
 }
 
 const (
-	blacklisted   = "file was on an exclusion list"
-	whitelisted   = "file was not on the inclusion list"
-	removedFile   = "file was removed"
-	limitExceed   = "file size was %dK which exceeds limit of %dK"
-	generatedFile = "file was a generated file"
-	vendoredFile  = "file was a vendored file"
-	configFile    = "file was a config file"
-	dotFile       = "file was a dot file"
-	pathInvalid   = "file path was invalid"
+	blacklisted     = "file was on an exclusion list"
+	whitelisted     = "file was not on the inclusion list"
+	removedFile     = "file was removed"
+	limitExceed     = "file size was %dK which exceeds limit of %dK"
+	generatedFile   = "file was a generated file"
+	vendoredFile    = "file was a vendored file"
+	configFile      = "file was a config file"
+	dotFile         = "file was a dot file"
+	pathInvalid     = "file path was invalid"
+	languageUnknown = "language was unknown"
 )
 
 // Start the pool
@@ -367,6 +368,23 @@ func (p *BlameWorkerPool) process(job filejob) {
 	}
 	buf := w.Bytes()
 	language := enry.GetLanguage(job.filename, buf)
+	if language == "" {
+		job.commit.callback(nil, &BlameResult{
+			Commit:             job.commit,
+			Language:           "",
+			Filename:           job.filename,
+			Lines:              nil,
+			Loc:                0,
+			Sloc:               0,
+			Comments:           0,
+			Blanks:             0,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            languageUnknown,
+			Status:             job.commit.Files[job.filename].Status,
+		}, job.total)
+		return
+	}
 	statcallback := &statsProcessor{lines: lines}
 	filejob := &processor.FileJob{
 		Filename: job.filename,
