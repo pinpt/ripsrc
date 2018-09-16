@@ -211,7 +211,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			if len(buf) == 0 {
 				continue
 			}
-			fmt.Println(string(buf))
+			// fmt.Println(string(buf))
 			if bytes.HasPrefix(buf, commitPrefix) {
 				sha := string(buf[len(commitPrefix):])
 				i := strings.Index(sha, " ")
