@@ -466,27 +466,31 @@ type statsProcessor struct {
 var generatedRegexp = regexp.MustCompile("(GENERATED|DO NOT EDIT|DO NOT MODIFY|machine generated)")
 
 func (p *statsProcessor) ProcessLine(job *processor.FileJob, currentLine int64, lineType processor.LineType) bool {
-	l := p.lines[int(currentLine)-1]
-	switch lineType {
-	case processor.LINE_BLANK:
-		l.Blank = true
-	case processor.LINE_CODE:
-		l.Code = true
-	case processor.LINE_COMMENT:
-		l.Comment = true
-	}
-	// if this is a comment and within N lines near the top, we check to see if it
-	// has a header that looks like a generated source file
-	if l.line != nil && l.Comment {
-		var src = *l.line
-		if generatedRegexp.MatchString(src) {
-			l.line = nil
-			p.generated = true
-			return false
+	index := int(currentLine) - 1
+	if index < len(p.lines) {
+		l := p.lines[index]
+		switch lineType {
+		case processor.LINE_BLANK:
+			l.Blank = true
+		case processor.LINE_CODE:
+			l.Code = true
+		case processor.LINE_COMMENT:
+			l.Comment = true
 		}
-		l.line = nil
+		// if this is a comment and within N lines near the top, we check to see if it
+		// has a header that looks like a generated source file
+		if l.line != nil && l.Comment {
+			var src = *l.line
+			if generatedRegexp.MatchString(src) {
+				l.line = nil
+				p.generated = true
+				return false
+			}
+			l.line = nil
+		}
+		return true
 	}
-	return true
+	return false
 }
 
 func init() {

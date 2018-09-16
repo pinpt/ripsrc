@@ -23,6 +23,8 @@ node_modules
 package.json$
 package-lock.json$
 .babelrc$
+.babelrc.js$
+babel.config.js$
 .flowconfig$
 .eslintrc(.js|.json)?$
 .eslintignore$
@@ -39,11 +41,14 @@ gulpfile.js$
 .jsbeautifyrc$
 .arc$
 .prettierignore$
+mocha.opts$
+Gruntfile$
 
 # web compressed
 [-.]min.js$
 [-.]min.css$
 .js.map$
+.css.map$
 
 # Jupyter notebook checkpoint file
 .ipynb_checkpoints
@@ -81,6 +86,7 @@ appveyor.yml$
 .npmignore$
 .cmake.in$
 Makefile.in$
+Jenkinsfile$
 
 
 # misc files
@@ -133,6 +139,9 @@ MAINTAINERS(.md|.txt|.rst)?
 .ico$
 .psd$
 .ai$
+.sketch$
+.icns$
+.icc$
 
 # doc files
 .pdf$
@@ -157,6 +166,7 @@ MAINTAINERS(.md|.txt|.rst)?
 .fla$
 .flv$
 .midi$
+.wmf$
 
 # font files
 .woff$
