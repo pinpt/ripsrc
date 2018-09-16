@@ -467,7 +467,7 @@ var generatedRegexp = regexp.MustCompile("(GENERATED|DO NOT EDIT|DO NOT MODIFY|m
 
 func (p *statsProcessor) ProcessLine(job *processor.FileJob, currentLine int64, lineType processor.LineType) bool {
 	index := int(currentLine) - 1
-	if index < len(p.lines) {
+	if index >= 0 && index < len(p.lines) {
 		l := p.lines[index]
 		switch lineType {
 		case processor.LINE_BLANK:
