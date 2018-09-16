@@ -89,6 +89,7 @@ const (
 	vendoredFile  = "file was a vendored file"
 	configFile    = "file was a config file"
 	dotFile       = "file was a dot file"
+	pathInvalid   = "file path was invalid"
 )
 
 // Start the pool
@@ -324,11 +325,23 @@ func (p *BlameWorkerPool) process(job filejob) {
 		return nil
 	}
 	if err := gitblame.GenerateWithContext(p.ctx, job.commit.Dir, job.commit.SHA, job.filename, callback, nil); err != nil {
-		if strings.Contains(err.Error(), "exit status 128") {
-			// this happens if the path is malformed and the filename cannot be found. long term
-			// we should figure out why git doesn't like these filenames even when escaped but
-			// it appears to be only when someone checks in a file with a weird character
-			// such as src/main\320java/com  .... where \320 is ?
+		// check to see if an invalid file that we can't produce a blame from and then treat this file like it's binary/excluded
+		// this happens for files that are commits that are invalid paths that git can't handle such as "www/foobar/\032"
+		if strings.Contains(err.Error(), "no such path") {
+			job.commit.callback(nil, &BlameResult{
+				Commit:             job.commit,
+				Language:           "",
+				Filename:           job.filename,
+				Lines:              nil,
+				Loc:                0,
+				Sloc:               0,
+				Comments:           0,
+				Blanks:             0,
+				Complexity:         0,
+				WeightedComplexity: 0,
+				Skipped:            pathInvalid,
+				Status:             job.commit.Files[job.filename].Status,
+			}, job.total)
 			return
 		}
 		job.commit.callback(fmt.Errorf("error processing commit %s %s (%s). %v", job.commit.SHA, job.filename, job.commit.Dir, err), nil, job.total)

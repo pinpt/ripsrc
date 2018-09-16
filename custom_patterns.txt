@@ -52,6 +52,7 @@ gulpfile.js$
 proguard
 .class$
 .project$
+.jar$
 
 # python
 __pycache__
@@ -108,6 +109,10 @@ MAINTAINERS(.md|.txt|.rst)?
 .cab$
 .crx$
 .lz$
+.7z$
+.bzip$
+.bson$
+.nupkg$
 
 # image files
 .eps$
@@ -125,15 +130,22 @@ MAINTAINERS(.md|.txt|.rst)?
 .tif$
 .tiff$
 .xcf$
+.ico$
+.psd$
+.ai$
 
 # doc files
 .pdf$
 .doc$
 .xls$
 .docx$
+.docm$
+.dot$
+.dotm$
 .xlsx$
 .ppt$
 .pptx$
+.rtf$
 
 # audio/video files
 .mpg$
@@ -167,6 +179,11 @@ MAINTAINERS(.md|.txt|.rst)?
 .ndf$
 .plg$
 .h.in$
+.lib$
+.la$
+.llblgenproj$
+.out$
+.app$
 
 # database files
 .sqlite$
@@ -179,6 +196,18 @@ MAINTAINERS(.md|.txt|.rst)?
 .pfx$
 .asc$
 .pkcs12$
+
+# idea
+.ipr$
+.iws$
+.iml$
+
+# visual studio
+.sln$
+.csproj$
+.vbproj$
+.fsproj$
+.dbproj$
 
 # misc files
 .deb$
@@ -194,3 +223,6 @@ MAINTAINERS(.md|.txt|.rst)?
 robots.txt$
 .vscodeignore$
 .coveragerc$
+.settings$
+.project$
+.bak$

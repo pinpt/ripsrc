@@ -211,7 +211,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			if len(buf) == 0 {
 				continue
 			}
-			// fmt.Println(string(buf))
+			fmt.Println(string(buf))
 			if bytes.HasPrefix(buf, commitPrefix) {
 				sha := string(buf[len(commitPrefix):])
 				i := strings.Index(sha, " ")
@@ -278,6 +278,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				continue
 			}
 			if buf[0] == ':' {
+				// fmt.Println(string(buf))
 				// :100644␠100644␠d1a02ae0...␠a452aaac...␠M␉·pandora/pom.xml
 				tok1 := bytes.Split(buf, space)
 				mask := tok1[1]
