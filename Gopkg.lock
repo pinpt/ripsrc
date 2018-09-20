@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  digest = "1:2f2e853052dd8bfdc2d565969c7d4fd9f690e893c8c0049092a00ddb029af837"
+  digest = "1:b9f0f63707fb5ea66307339cad43034d745ddfed916fcb99af04984953cdfd75"
   name = "github.com/boyter/scc"
   packages = ["processor"]
   pruneopts = "NUT"
-  revision = "8d566b5e5403f0a118bf828ffdad3c980b03d8c9"
-  version = "v1.9.0"
+  revision = "f466da50673ba14762766647787974777f6b0f6e"
+  version = "v1.10.0"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"

@@ -126,6 +126,20 @@ func (p *BlameWorkerPool) Submit(job Commit, callback Callback) {
 	p.commitjobs <- job
 }
 
+func (p *BlameWorkerPool) isVendored(filename string) bool {
+	if enry.IsVendor(filename) {
+		// enry will incorrectly match something like:
+		// src/com/foo/android/cache/DiskLruCache.java
+		// as a vendored file but it's not.... we'll try
+		// and correct with heuristics here
+		if strings.HasPrefix(filename, "src/") {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 // handle a set of black lists that we should automatically not process
 func (p *BlameWorkerPool) shouldProcess(filename string) (bool, string) {
 	// check the cache since some of these lookups are a bit expensive and
@@ -147,7 +161,7 @@ func (p *BlameWorkerPool) shouldProcess(filename string) (bool, string) {
 		p.hashedExclusions[filename] = &exclusionDecision{false, blacklisted}
 		return false, blacklisted
 	}
-	if enry.IsVendor(filename) {
+	if p.isVendored(filename) {
 		p.hashedExclusions[filename] = &exclusionDecision{false, vendoredFile}
 		return false, vendoredFile
 	}

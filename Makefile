@@ -31,7 +31,7 @@ linux: setup
 	@GOOS=linux GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-linux
 
 windows: setup
-	@GOOS=windows GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-windows
+	@GOOS=windows GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-windows.exe
 
 darwin: setup codesign
 	@GOOS=darwin GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-darwin

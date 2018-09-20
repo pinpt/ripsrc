@@ -58,6 +58,8 @@ proguard
 .class$
 .project$
 .jar$
+^dexguard/
+dexguard-project-(debug|release).txt$
 
 # python
 __pycache__
@@ -87,7 +89,10 @@ appveyor.yml$
 .cmake.in$
 Makefile.in$
 Jenkinsfile$
-
+^fastlane/Appfile$
+^fastlane/Fastfile$
+^build.gradle$
+^gradle.properties$
 
 # misc files
 LICENSE(.md|.txt|.rst)?
@@ -236,3 +241,4 @@ robots.txt$
 .settings$
 .project$
 .bak$
+Screengrabfile$
