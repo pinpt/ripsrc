@@ -3,6 +3,7 @@ package ripsrc
 import (
 	"regexp"
 	"sort"
+	"sync"
 
 	"gopkg.in/src-d/go-license-detector.v2/licensedb"
 	"gopkg.in/src-d/go-license-detector.v2/licensedb/filer"
@@ -38,7 +39,7 @@ type License struct {
 	Confidence float32 `json:"confidence"`
 }
 
-var licenses = regexp.MustCompile("(LICENSE|README)(\\.(md|txt))?$")
+var licenses = regexp.MustCompile("(LICENSE|README|COPYING|LICENSE-.*)(\\.(md|txt))?$")
 
 func possibleLicense(filename string) bool {
 	return licenses.MatchString(filename)
@@ -46,9 +47,13 @@ func possibleLicense(filename string) bool {
 
 const minConfidenceLevel float32 = 0.85
 
+var mu sync.Mutex
+
 func detect(filename string, buf []byte) (*License, error) {
 	mf := &memoryfiler{filename, buf}
+	mu.Lock()
 	kv, err := licensedb.Detect(mf)
+	mu.Unlock()
 	if err != nil {
 		if err == licensedb.ErrNoLicenseFound {
 			return nil, nil
@@ -64,9 +69,9 @@ func detect(filename string, buf []byte) (*License, error) {
 			sort.Slice(matches, func(i, j int) bool {
 				return matches[i].Confidence > matches[j].Confidence
 			})
-		}
-		if matches[0].Confidence >= minConfidenceLevel {
-			return &matches[0], nil
+			if matches[0].Confidence >= minConfidenceLevel {
+				return &matches[0], nil
+			}
 		}
 	}
 	return nil, nil
