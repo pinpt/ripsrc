@@ -24,7 +24,7 @@ func TestStreamCommitsEmpty(t *testing.T) {
 		}
 	case err := <-errors:
 		{
-			assert.NoError(err)
+			assert.EqualError(err, "exit status 128. fatal: not a git repository (or any of the parent directories): .git")
 		}
 	default:
 		break

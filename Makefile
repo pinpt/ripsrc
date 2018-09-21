@@ -37,7 +37,7 @@ darwin: setup codesign
 	@GOOS=darwin GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-darwin
 
 test:
-	@go test -v ./ripsrc
+	@go test -race -v ./ripsrc
 
 # we codesign our OSX binary with Apple Developer Certificate
 codesign:

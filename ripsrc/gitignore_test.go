@@ -17,7 +17,9 @@ func TestGitIgnorePatterns(t *testing.T) {
 
 func TestShouldIgnore(t *testing.T) {
 	assert := assert.New(t)
-	b := &BlameWorkerPool{}
+	b := &BlameWorkerPool{
+		hashedExclusions: make(map[string]*exclusionDecision),
+	}
 	ok, reason := b.shouldProcess("go.mod")
 	assert.False(ok)
 	assert.Equal("file was on an exclusion list", reason)
@@ -26,7 +28,7 @@ func TestShouldIgnore(t *testing.T) {
 	assert.Equal("file was a dot file", reason)
 	ok, reason = b.shouldProcess("vendor/foo/bar.go")
 	assert.False(ok)
-	assert.Equal("file was a vendored file", reason)
+	assert.Equal("file was on an exclusion list", reason)
 }
 
 func BenchmarkIgnorePatterns10(b *testing.B) {
@@ -38,7 +40,9 @@ func BenchmarkIgnorePatterns10(b *testing.B) {
 
 func BenchmarkIgnore10(b *testing.B) {
 	assert := assert.New(b)
-	w := &BlameWorkerPool{}
+	w := &BlameWorkerPool{
+		hashedExclusions: make(map[string]*exclusionDecision),
+	}
 	for n := 0; n < b.N; n++ {
 		ok, _ := w.shouldProcess("go.mod")
 		assert.False(ok)

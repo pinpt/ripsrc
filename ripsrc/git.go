@@ -350,5 +350,8 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		}
 	}()
 	<-done
+	if err := cmd.Wait(); err != nil {
+		errors <- fmt.Errorf("%v. %v", err, strings.TrimSpace(errout.String()))
+	}
 	return nil
 }
