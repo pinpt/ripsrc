@@ -202,14 +202,18 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		ordinal := time.Now().Unix()
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			select {
-			case <-ctx.Done():
+			if s.Err() != nil {
+				errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, s.Err())
 				return
-			default:
 			}
 			buf := s.Bytes()
 			if len(buf) == 0 {
 				continue
+			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
 			// fmt.Println(string(buf))
 			if bytes.HasPrefix(buf, commitPrefix) {
@@ -346,12 +350,17 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			}
 		}
 		if commit != nil {
-			commits <- *commit
+			select {
+			case commits <- *commit:
+				break
+			default:
+			}
 		}
 	}()
-	<-done
 	if err := cmd.Wait(); err != nil {
-		errors <- fmt.Errorf("%v. %v", err, strings.TrimSpace(errout.String()))
+		errors <- fmt.Errorf("error streaming commits from %v for sha %v. %v. %v", dir, sha, err, strings.TrimSpace(errout.String()))
+		return nil
 	}
+	<-done
 	return nil
 }
