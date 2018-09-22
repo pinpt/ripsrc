@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -191,18 +192,23 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		}
 		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
 	}
-	done := make(chan bool)
 	var total int
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		defer func() {
-			done <- true
-		}()
+		defer wg.Done()
 		var commit *Commit
 		r := bufio.NewReaderSize(out, 200) // most lines are pretty small for the result based on test sampling of sizes
 		ordinal := time.Now().Unix()
 		s := bufio.NewScanner(r)
+		scanbuf := getBuffer()
+		defer putBuffer(scanbuf)
+		s.Buffer(scanbuf.Bytes(), bufio.MaxScanTokenSize)
 		for s.Scan() {
 			if s.Err() != nil {
+				if strings.Contains(s.Err().Error(), "file already closed") {
+					break
+				}
 				errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, s.Err())
 				return
 			}
@@ -361,6 +367,6 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		errors <- fmt.Errorf("error streaming commits from %v for sha %v. %v. %v", dir, sha, err, strings.TrimSpace(errout.String()))
 		return nil
 	}
-	<-done
+	wg.Wait()
 	return nil
 }
