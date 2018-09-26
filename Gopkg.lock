@@ -95,12 +95,12 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:869dd57068e2574385df56426d56ae88a83f202a8b9d22cdb48b693a04974893"
+  digest = "1:8ae1b5d6b900e5a00d12ba45df27aacefbee8ea8588f4cfbd34b5d5ec117ccd3"
   name = "github.com/jhaynie/gitblame"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "442024afa3cd11cbbb791bb43280c2a0985d2727"
-  version = "0.0.8"
+  revision = "235c6489d86fdbe3487a7972c73977b8b07770c5"
+  version = "0.0.11"
 
 [[projects]]
   digest = "1:f396528c1d6a75da6d0df8cd8425c8bec903ce55ebcb1a0e71643a4e93f45736"

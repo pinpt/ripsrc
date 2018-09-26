@@ -3,6 +3,7 @@ package ripsrc
 //go:generate go run ../genignore.go
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"regexp"
@@ -81,18 +82,19 @@ type BlameWorkerPool struct {
 }
 
 const (
-	blacklisted     = "file was on an exclusion list"
-	whitelisted     = "file was not on the inclusion list"
-	removedFile     = "file was removed"
-	limitExceed     = "file size was %dK which exceeds limit of %dK"
-	maxLineExceed   = "file has more than %d lines"
-	maxBytesExceed  = "file has a line with %dK which is greater than max of %dK"
-	generatedFile   = "file was a generated file"
-	vendoredFile    = "file was a vendored file"
-	configFile      = "file was a config file"
-	dotFile         = "file was a dot file"
-	pathInvalid     = "file path was invalid"
-	languageUnknown = "language was unknown"
+	blacklisted        = "file was on an exclusion list"
+	whitelisted        = "file was not on the inclusion list"
+	removedFile        = "file was removed"
+	limitExceed        = "file size was %dK which exceeds limit of %dK"
+	maxLineExceed      = "file has more than %d lines"
+	maxLineBytesExceed = "file has a line width of >=%dK which is greater than max of %dK"
+	generatedFile      = "file was a generated file"
+	vendoredFile       = "file was a vendored file"
+	configFile         = "file was a config file"
+	dotFile            = "file was a dot file"
+	pathInvalid        = "file path was invalid"
+	languageUnknown    = "language was unknown"
+	fileNotSupported   = "file type was not supported as source code"
 )
 
 // Start the pool
@@ -178,7 +180,6 @@ func (p *BlameWorkerPool) runCommitJobs() {
 		// small optimization if there are no files
 		if total > 0 {
 			var wg sync.WaitGroup
-			wg.Add(total)
 			for filename, cf := range job.Files {
 				var custom bool
 				ok, skipped := p.shouldProcess(filename)
@@ -213,7 +214,6 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							buf, err := getBlob(p.ctx, job.Dir, job.SHA, filename)
 							if err != nil {
 								job.callback(err, nil, total)
-								wg.Done()
 								return
 							}
 							if !enry.IsBinary(buf) {
@@ -235,7 +235,6 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							License:            license,
 							Status:             cf.Status,
 						}, total)
-						wg.Done()
 					}
 				} else {
 					// if removed, we need to keep a record so we can detect it
@@ -256,11 +255,11 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							License:            license,
 							Status:             cf.Status,
 						}, total)
-						wg.Done()
 					} else {
 						// only process files that aren't blacklisted
 						// don't call wg.Done here because it will be
 						// called when the file job completes
+						wg.Add(1)
 						p.filejobs <- filejob{
 							commit:   job,
 							filename: filename,
@@ -330,7 +329,7 @@ func (p *BlameWorkerPool) process(job filejob) {
 		if len(line.Line) >= maxBytesPerLine {
 			// don't process anymore
 			stopped = true
-			reason = fmt.Sprintf(maxBytesExceed, len(line.Line)/1024, maxBytesPerLine/1024)
+			reason = fmt.Sprintf(maxLineBytesExceed, len(line.Line)/1024, maxBytesPerLine/1024)
 			return nil
 		}
 		if len(line.Line)+filesize >= maxFileSize {
@@ -359,6 +358,42 @@ func (p *BlameWorkerPool) process(job filejob) {
 		return nil
 	}
 	if err := gitblame.GenerateWithContext(p.ctx, job.commit.Dir, job.commit.SHA, job.filename, callback, nil); err != nil {
+		if err == bufio.ErrTooLong {
+			// these means we got one too long on a scanned blame line
+			job.commit.callback(nil, &BlameResult{
+				Commit:             job.commit,
+				Language:           "",
+				Filename:           job.filename,
+				Lines:              nil,
+				Loc:                0,
+				Sloc:               0,
+				Comments:           0,
+				Blanks:             0,
+				Complexity:         0,
+				WeightedComplexity: 0,
+				Skipped:            fmt.Sprintf(maxLineBytesExceed, maxBytesPerLine/1024, maxBytesPerLine/1024),
+				Status:             job.commit.Files[job.filename].Status,
+			}, job.total)
+			return
+		}
+		// on some OS (like windows), blame tries to do something with the file as part of processing
+		if strings.Contains(err.Error(), "unsupported filetype") {
+			job.commit.callback(nil, &BlameResult{
+				Commit:             job.commit,
+				Language:           "",
+				Filename:           job.filename,
+				Lines:              nil,
+				Loc:                0,
+				Sloc:               0,
+				Comments:           0,
+				Blanks:             0,
+				Complexity:         0,
+				WeightedComplexity: 0,
+				Skipped:            fileNotSupported,
+				Status:             job.commit.Files[job.filename].Status,
+			}, job.total)
+			return
+		}
 		// check to see if an invalid file that we can't produce a blame from and then treat this file like it's binary/excluded
 		// this happens for files that are commits that are invalid paths that git can't handle such as "www/foobar/\032"
 		if strings.Contains(err.Error(), "no such path") {
@@ -535,4 +570,6 @@ func init() {
 	processor.ProcessConstants()
 	// now we need to reset it to the original GC value
 	debug.SetGCPercent(currentGC)
+	// change the default line size for git blame to match our setting
+	gitblame.MaxLineSize = maxBytesPerLine
 }

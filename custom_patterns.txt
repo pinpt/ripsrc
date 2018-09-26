@@ -149,7 +149,7 @@ MAINTAINERS(.md|.txt|.rst)?
 .icc$
 
 # doc files
-.pdf$
+.[P]pdf$
 .doc$
 .xls$
 .docx$
