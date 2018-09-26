@@ -62,7 +62,6 @@ type Commit struct {
 }
 
 var (
-	lend               = []byte("\n")
 	commitPrefix       = []byte("commit ")
 	authorPrefix       = []byte("Author: ")
 	committerPrefix    = []byte("Committer: ")

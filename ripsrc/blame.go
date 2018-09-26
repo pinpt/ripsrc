@@ -85,6 +85,8 @@ const (
 	whitelisted     = "file was not on the inclusion list"
 	removedFile     = "file was removed"
 	limitExceed     = "file size was %dK which exceeds limit of %dK"
+	maxLineExceed   = "file has more than %d lines"
+	maxBytesExceed  = "file has a line with %dK which is greater than max of %dK"
 	generatedFile   = "file was a generated file"
 	vendoredFile    = "file was a vendored file"
 	configFile      = "file was a config file"
@@ -313,11 +315,28 @@ func (p *BlameWorkerPool) process(job filejob) {
 	var idx int
 	var filesize int
 	var stopped bool
+	var reason string
 	// create a callback for blame to track all the author by line
 	callback := func(line gitblame.BlameLine) error {
-		if stopped || idx >= maxLinePerFile || len(line.Line) >= maxBytesPerLine || len(line.Line)+filesize >= maxFileSize {
+		if stopped {
+			return nil
+		}
+		if idx >= maxLinePerFile {
 			// don't process anymore
 			stopped = true
+			reason = fmt.Sprintf(maxLineExceed, idx)
+			return nil
+		}
+		if len(line.Line) >= maxBytesPerLine {
+			// don't process anymore
+			stopped = true
+			reason = fmt.Sprintf(maxBytesExceed, len(line.Line)/1024, maxBytesPerLine/1024)
+			return nil
+		}
+		if len(line.Line)+filesize >= maxFileSize {
+			// don't process anymore
+			stopped = true
+			reason = fmt.Sprintf(limitExceed, w.Len()/1024, maxFileSize/1024)
 			return nil
 		}
 		w.WriteString(line.Line)
@@ -375,7 +394,7 @@ func (p *BlameWorkerPool) process(job filejob) {
 			Blanks:             0,
 			Complexity:         0,
 			WeightedComplexity: 0,
-			Skipped:            fmt.Sprintf(limitExceed, w.Len()/1024, maxFileSize/1024),
+			Skipped:            reason,
 			Status:             job.commit.Files[job.filename].Status,
 		}, job.total)
 		return
