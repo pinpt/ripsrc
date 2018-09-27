@@ -2,3 +2,4 @@ dist
 vendor
 profile
 .DS_Store
+.idea

@@ -2,13 +2,12 @@ package ripsrc
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestStreamCommitsEmpty(t *testing.T) {
@@ -55,5 +54,66 @@ func TestStreamCommitsNotEmpty(t *testing.T) {
 		}
 	default:
 		assert.Fail("should have found a commit and didn't")
+	}
+}
+
+func TestToCommitStatus(t *testing.T) {
+	assert := assert.New(t)
+	tt := []struct {
+		data   []byte
+		answer string
+	}{
+		{[]byte(""), ""},
+		{[]byte("A"), "added"},
+		{[]byte("D"), "removed"},
+		{[]byte("M"), "modified"},
+	}
+	for _, v := range tt {
+		response := toCommitStatus(v.data)
+		assert.Contains(response, v.answer)
+	}
+}
+
+func TestParseDate(t *testing.T) {
+	assert := assert.New(t)
+	tt := []struct {
+		data   string
+		answer string
+	}{
+		{"2018-09-26", ""},
+	}
+	for _, v := range tt {
+		_, err := parseDate(v.data)
+		assert.Error(err)
+	}
+}
+
+func TestParseEmail(t *testing.T) {
+	assert := assert.New(t)
+	tt := []struct {
+		data   string
+		answer string
+	}{
+		{"<someone@somewhere.com>", "someone@somewhere.com"},
+		{"", ""},
+	}
+	for _, v := range tt {
+		response := parseEmail(v.data)
+		assert.Equal(response,v.answer)
+	}
+}
+
+func TestGetFilename(t *testing.T) {
+	assert := assert.New(t)
+	tt := []struct {
+		data   string
+		answer string
+	}{
+		{"/somewhere/somewhere/somewhere/something.txt => /somewhere/somewhere/something.txt", "/somewhere/somewhere/something.txt"},
+		{"", ""},
+	}
+	for _, v := range tt {
+		response,_,_ := getFilename(v.data)
+		assert.Equal(response,v.answer)
 	}
 }
