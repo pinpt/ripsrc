@@ -94,6 +94,7 @@ func TestParseEmail(t *testing.T) {
 		data   string
 		answer string
 	}{
+		{"\\", ""},
 		{"<someone@somewhere.com>", "someone@somewhere.com"},
 		{"", ""},
 	}
