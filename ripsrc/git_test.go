@@ -94,13 +94,15 @@ func TestParseEmail(t *testing.T) {
 		data   string
 		answer string
 	}{
-		{"\\", ""},
+		{"^cf89534 <jhaynie@pinpt.com> 2018-06-30 17:06:10 -0700   1", "jhaynie@pinpt.com"},
 		{"<someone@somewhere.com>", "someone@somewhere.com"},
+		{"<[someone@somewhere.com]>", "someone@somewhere.com"},
+		{"\\", ""},
 		{"", ""},
 	}
 	for _, v := range tt {
 		response := parseEmail(v.data)
-		assert.Equal(response,v.answer)
+		assert.Equal(response, v.answer)
 	}
 }
 
@@ -111,10 +113,11 @@ func TestGetFilename(t *testing.T) {
 		answer string
 	}{
 		{"/somewhere/somewhere/somewhere/something.txt => /somewhere/somewhere/something.txt", "/somewhere/somewhere/something.txt"},
+		{`file.go\{file.go => newfile.go\}newfile.go`, `file.go\/newfile.go\/newfile.go`},
 		{"", ""},
 	}
 	for _, v := range tt {
-		response,_,_ := getFilename(v.data)
-		assert.Equal(response,v.answer)
+		response, _, _ := getFilename(v.data)
+		assert.Equal(response, v.answer)
 	}
 }
