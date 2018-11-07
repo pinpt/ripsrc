@@ -156,6 +156,9 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 	return result
 }
 
+// MaxStreamDuration is the maximum duration that a stream should run.
+var MaxStreamDuration = time.Minute * 20
+
 // streamCommits will stream all the commits to the returned channel and block until completed
 func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- Commit, errors chan<- error) error {
 	errout := getBuffer()
@@ -173,28 +176,33 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	if sha != "" {
 		args = append(args, sha+"...")
 	}
+	newctx, cancel := context.WithCancel(ctx)
 	// fmt.Println(args)
-	cmd = exec.CommandContext(ctx, "git", args...)
+	cmd = exec.CommandContext(newctx, "git", args...)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
+		cancel()
 		return err
 	}
-	defer out.Close()
 	cmd.Dir = dir
 	cmd.Stderr = errout
-	if err := cmd.Start(); err != nil {
-		if strings.Contains(errout.String(), "does not have any commits yet") {
-			return fmt.Errorf("no commits found in repo at %s", dir)
-		}
-		if strings.Contains(errout.String(), "Not a git repository") {
-			return fmt.Errorf("not a valid git repo found in repo at %s", dir)
-		}
-		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
-	}
-	var total int
 	var wg sync.WaitGroup
+	var total int
+	// create a fail safe goroutine that will monitor the stream and force an error if it runs longer than 20m
+	go func() {
+		select {
+		case <-time.After(MaxStreamDuration):
+			errors <- fmt.Errorf("streaming commit has timed out after %v for %s (sha:%s)", MaxStreamDuration, dir, sha)
+			cmd.Process.Kill()
+			out.Close()
+			cancel()
+		case <-newctx.Done():
+			return
+		}
+	}()
 	wg.Add(1)
 	go func() {
+		defer out.Close()
 		defer wg.Done()
 		var commit *Commit
 		r := bufio.NewReaderSize(out, 200) // most lines are pretty small for the result based on test sampling of sizes
@@ -206,7 +214,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		for s.Scan() {
 			if s.Err() != nil {
 				if strings.Contains(s.Err().Error(), "file already closed") {
-					break
+					return
 				}
 				errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, s.Err())
 				return
@@ -216,7 +224,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				continue
 			}
 			select {
-			case <-ctx.Done():
+			case <-newctx.Done():
 				return
 			default:
 			}
@@ -359,13 +367,24 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			case commits <- *commit:
 				break
 			default:
+				fmt.Println("!!!!!!! ERROR: blocked trying to write commit to commit stream. this buffer is full")
 			}
 		}
 	}()
+	if err := cmd.Start(); err != nil {
+		if strings.Contains(errout.String(), "does not have any commits yet") {
+			return fmt.Errorf("no commits found in repo at %s", dir)
+		}
+		if strings.Contains(errout.String(), "Not a git repository") {
+			return fmt.Errorf("not a valid git repo found in repo at %s", dir)
+		}
+		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
+	}
+	wg.Wait()
 	if err := cmd.Wait(); err != nil {
 		errors <- fmt.Errorf("error streaming commits from %v for sha %v. %v. %v", dir, sha, err, strings.TrimSpace(errout.String()))
 		return nil
 	}
-	wg.Wait()
+	cancel()
 	return nil
 }
