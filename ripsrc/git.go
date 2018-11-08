@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -161,6 +163,10 @@ var MaxStreamDuration = time.Minute * 20
 
 // streamCommits will stream all the commits to the returned channel and block until completed
 func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- Commit, errors chan<- error) error {
+	gitdir := filepath.Join(dir, ".git")
+	if _, err := os.Stat(gitdir); os.IsNotExist(err) {
+		return nil
+	}
 	errout := getBuffer()
 	defer putBuffer(errout)
 	var cmd *exec.Cmd
@@ -201,25 +207,33 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		}
 	}()
 	wg.Add(1)
+	started := make(chan bool)
 	go func() {
-		defer out.Close()
-		defer wg.Done()
+		<-started
+		scanbuf := getBuffer()
+		defer func() {
+			out.Close()
+			wg.Done()
+			putBuffer(scanbuf)
+		}()
 		var commit *Commit
 		r := bufio.NewReaderSize(out, 200) // most lines are pretty small for the result based on test sampling of sizes
 		ordinal := time.Now().Unix()
 		s := bufio.NewScanner(r)
-		scanbuf := getBuffer()
-		defer putBuffer(scanbuf)
 		s.Buffer(scanbuf.Bytes(), bufio.MaxScanTokenSize)
 		for s.Scan() {
+			// fmt.Println("scan loop", s.Err())
 			if s.Err() != nil {
-				if strings.Contains(s.Err().Error(), "file already closed") {
-					return
+				errmsg := s.Err().Error()
+				// fmt.Println("error", errmsg)
+				if strings.Contains(errmsg, "file already closed") || strings.Contains(errmsg, "broken pipe") {
+					break
 				}
 				errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, s.Err())
 				return
 			}
 			buf := s.Bytes()
+			// fmt.Println("buf>", len(buf), "string", string(buf))
 			if len(buf) == 0 {
 				continue
 			}
@@ -365,6 +379,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		if commit != nil {
 			select {
 			case commits <- *commit:
+				commit = nil
 				break
 			default:
 				fmt.Println("!!!!!!! ERROR: blocked trying to write commit to commit stream. this buffer is full")
@@ -380,10 +395,13 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		}
 		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
 	}
+	started <- true
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
-		errors <- fmt.Errorf("error streaming commits from %v for sha %v. %v. %v", dir, sha, err, strings.TrimSpace(errout.String()))
-		return nil
+		if !strings.Contains(err.Error(), "broken pipe") {
+			cancel()
+			return fmt.Errorf("error streaming commits from %v for sha %v. (err=%v). %v", dir, sha, err, strings.TrimSpace(errout.String()))
+		}
 	}
 	cancel()
 	return nil

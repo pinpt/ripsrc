@@ -59,10 +59,11 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 		errors <- fmt.Errorf("error finding git dir from %v. %v", dir, err)
 		return
 	}
-	after := make(chan bool)
+	var wg sync.WaitGroup
+	wg.Add(1)
 	// start the goroutine for processing before we start processing
 	go func() {
-		defer func() { after <- true }()
+		defer wg.Done()
 		var count int
 		backlog := make(map[string][]*BlameResult)
 		var mu sync.Mutex
@@ -139,7 +140,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 		}
 	}
 	close(commits)
-	<-after
+	wg.Wait()
 	close(results)
 	pool.Close()
 }
