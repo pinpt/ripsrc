@@ -50,15 +50,15 @@ type Filter struct {
 // and will stream blame details for each commit back to results
 // the results channel will automatically be called once all the commits are
 // streamed. this function will block until all results are streamed
-func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors chan<- error, filter *Filter) {
+func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Filter) error {
+	gitdirs, err := findGitDir(dir)
+	if err != nil {
+		return fmt.Errorf("error finding git dir from %v. %v", dir, err)
+	}
+	errors := make(chan error, 100)
 	pool := NewBlameWorkerPool(ctx, errors, filter)
 	pool.Start()
 	commits := make(chan Commit, 1000)
-	gitdirs, err := findGitDir(dir)
-	if err != nil {
-		errors <- fmt.Errorf("error finding git dir from %v. %v", dir, err)
-		return
-	}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	// start the goroutine for processing before we start processing
@@ -73,6 +73,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 			var filecount int
 			currentSha := commit.SHA
 			res := make(chan BlameResult, total)
+			localerrors := make(chan error, total)
 			// submit will send the commit job for async processing ... however, we need to stream them
 			// back to the results channel in order that they were originally committed so we're going to
 			// have to reorder the results and cache the pending ones that finish before the right order
@@ -83,7 +84,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 				filecount++
 				last := total == filecount
 				if err != nil {
-					errors <- err
+					localerrors <- err
 				} else {
 					if result != nil {
 						arr := backlog[result.Commit.SHA]
@@ -122,6 +123,14 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 			for i := 0; i < total; i++ {
 				results <- <-res
 			}
+			// check to see if we had an error and if so, send it on and then stop processing
+			select {
+			case err := <-localerrors:
+				errors <- err
+				return
+			default:
+				break
+			}
 		}
 	}()
 	// setup a goroutine to start processing commits
@@ -135,12 +144,17 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, errors cha
 			limit = filter.Limit
 		}
 		if err := streamCommits(ctx, gitdir, sha, limit, commits, errors); err != nil {
-			errors <- fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
-			return
+			return fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
 		}
 	}
 	close(commits)
 	wg.Wait()
-	close(results)
 	pool.Close()
+	select {
+	case err := <-errors:
+		return err
+	default:
+		break
+	}
+	return nil
 }

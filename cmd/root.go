@@ -22,14 +22,6 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		errors := make(chan error, 1)
-		go func() {
-			for err := range errors {
-				cancel()
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		}()
 		// potentially enable profiling
 		p, _ := cmd.Flags().GetString("profile")
 		var dir string
@@ -98,7 +90,11 @@ var rootCmd = &cobra.Command{
 			resultsDone <- true
 		}()
 		started := time.Now()
-		ripsrc.Rip(ctx, args[0], results, errors, filter)
+		if err := ripsrc.Rip(ctx, args[0], results, filter); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		close(results)
 		<-resultsDone
 		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
 	},

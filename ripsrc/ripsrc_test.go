@@ -14,13 +14,12 @@ import (
 func TestBasicSingleRip(t *testing.T) {
 	assert := assert.New(t)
 	results := make(chan BlameResult, 6)
-	errors := make(chan error, 1)
 	cwd, _ := os.Getwd()
 	dir := filepath.Join(cwd, "..")
-	Rip(context.Background(), dir, results, errors, &Filter{SHA: "591377c17227ffa7134812188bbbda685e366b21", Limit: 1})
+	err := Rip(context.Background(), dir, results, &Filter{SHA: "591377c17227ffa7134812188bbbda685e366b21", Limit: 1})
+	assert.NoError(err)
+	close(results)
 	select {
-	case err := <-errors:
-		assert.NoError(err)
 	case result, ok := <-results:
 		assert.True(ok)
 		assert.Equal("a0ec861c9e157908d06a814079abbb63e54784e3", result.Commit.SHA)
@@ -32,17 +31,16 @@ func TestBasicSingleRip(t *testing.T) {
 func TestBasicMultiRip(t *testing.T) {
 	assert := assert.New(t)
 	results := make(chan BlameResult, 20)
-	errors := make(chan error, 1)
 	cwd, _ := os.Getwd()
 	dir := filepath.Join(cwd, "..")
 	var count int
-	Rip(context.Background(), dir, results, errors, &Filter{SHA: "db285eb2a083c8d764a55841e6b83a0eb9130516", Limit: 7})
+	err := Rip(context.Background(), dir, results, &Filter{SHA: "db285eb2a083c8d764a55841e6b83a0eb9130516", Limit: 7})
+	assert.NoError(err)
+	close(results)
 	var buf bytes.Buffer
 Loop:
 	for {
 		select {
-		case err := <-errors:
-			assert.NoError(err)
 		case result, ok := <-results:
 			if ok {
 				fmt.Fprintln(&buf, result.Commit.SHA, result.Filename, result.Language, result.Blanks, result.Comments, result.Loc, result.Size, result.Sloc, result.Complexity, result.WeightedComplexity, result.Status.String(), result.Commit.AuthorEmail, result.Commit.Date.String(), result.Commit.Signed, result.Commit.Message)
