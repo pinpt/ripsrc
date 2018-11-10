@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,3 +79,14 @@ a0ec861c9e157908d06a814079abbb63e54784e3 ripsrc/blame.go Go 24 51 396 11341 321 
 a0ec861c9e157908d06a814079abbb63e54784e3 ripsrc/gitignore.go  0 0 0 0 0 0 0 modified jhaynie@pinpt.com 2018-09-05 19:12:32 +0000 UTC true - fixed issue where the dot in the regexp was improperly being double escaped - improve the skip reason to be more specific - add a few test and benchmark cases - add go.sum for new go1.11 dependency file
 a0ec861c9e157908d06a814079abbb63e54784e3 ripsrc/gitignore_test.go Go 6 0 46 1205 40 2 0 added jhaynie@pinpt.com 2018-09-05 19:12:32 +0000 UTC true - fixed issue where the dot in the regexp was improperly being double escaped - improve the skip reason to be more specific - add a few test and benchmark cases - add go.sum for new go1.11 dependency file
 `
+
+func TestInvalidDir(t *testing.T) {
+	assert := assert.New(t)
+	results := make(chan BlameResult, 6)
+	cwd, _ := os.Getwd()
+	dir := filepath.Join(cwd, "asdfaldkfjalsjdfaso8f90as8dfo0asd")
+	err := Rip(context.Background(), dir, results, &Filter{SHA: "591377c17227ffa7134812188bbbda685e366b21", Limit: 1})
+	assert.NotNil(err)
+	close(results)
+	assert.True(strings.Contains(err.Error(), "error finding git dir from"))
+}

@@ -70,6 +70,9 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 		// feed each commit into our worker pool for blame processing
 		for commit := range commits {
 			total := len(commit.Files)
+			if total == 0 {
+				continue
+			}
 			var filecount int
 			currentSha := commit.SHA
 			res := make(chan BlameResult, total)
@@ -115,6 +118,8 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 							}
 							arr = nil
 						}
+					} else {
+						panic("ripsrc git blame returned a nil result")
 					}
 				}
 			})

@@ -2,12 +2,15 @@ package ripsrc
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStreamCommitsEmpty(t *testing.T) {
@@ -121,4 +124,37 @@ func TestGetFilename(t *testing.T) {
 		response, _, _ := getFilename(v.data)
 		assert.Equal(response, v.answer)
 	}
+}
+
+func TestStreamCommitsWithAnError(t *testing.T) {
+	assert := assert.New(t)
+	commits := make(chan Commit, 1000)
+	errors := make(chan error, 1)
+	tmpdir := os.TempDir()
+	defer os.RemoveAll(tmpdir)
+	fn := filepath.Join(tmpdir, "rungit.sh")
+	gfn := filepath.Join(tmpdir, "mockgit.go")
+	gout := `package main
+
+import "fmt"
+func main() {
+	fmt.Println("hi")
+	panic(1)
+}
+	`
+	ioutil.WriteFile(gfn, []byte(gout), 0644)
+	bout := fmt.Sprintf(`#!/bin/sh
+echo running...
+go run %s
+	`, gfn)
+	ioutil.WriteFile(fn, []byte(bout), 0644)
+	exec.Command("chmod", "+x", fn).Run()
+	oldGit := gitCommand
+	defer func() { gitCommand = oldGit }()
+	gitCommand = fn
+	cwd, _ := os.Getwd()
+	cwd = filepath.Join(cwd, "..")
+	err := streamCommits(context.Background(), cwd, "", 0, commits, errors)
+	assert.NotNil(err)
+	assert.True(strings.Contains(err.Error(), "error streaming commits from"))
 }

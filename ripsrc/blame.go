@@ -214,7 +214,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 							buf, err := getBlob(p.ctx, job.Dir, job.SHA, filename)
 							if err != nil {
 								job.callback(err, nil, total)
-								return
+								continue
 							}
 							if !enry.IsBinary(buf) {
 								license, err = detect(filename, buf)
@@ -277,7 +277,7 @@ func (p *BlameWorkerPool) runCommitJobs() {
 				return
 			}
 		} else {
-			job.callback(nil, nil, 0)
+			job.callback(nil, nil, total)
 		}
 	}
 }

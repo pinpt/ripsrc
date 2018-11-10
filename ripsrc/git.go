@@ -11,7 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime/debug"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -167,6 +167,9 @@ var (
 	MaxUnderReadDuration = time.Minute
 )
 
+// allow our test case to change the executable
+var gitCommand, _ = exec.LookPath("git")
+
 // streamCommits will stream all the commits to the returned channel and block until completed
 func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- Commit, errors chan<- error) error {
 	gitdir := filepath.Join(dir, ".git")
@@ -190,7 +193,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	}
 	newctx, cancel := context.WithCancel(ctx)
 	// fmt.Println(args)
-	cmd = exec.CommandContext(newctx, "git", args...)
+	cmd = exec.CommandContext(newctx, gitCommand, args...)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
@@ -205,7 +208,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		select {
 		case <-time.After(MaxStreamDuration):
 			// fmt.Println("!!!!!!! ERROR MAX STREAM DURATION", dir)
-			debug.PrintStack()
+			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
 			errors <- fmt.Errorf("streaming commit has timed out after %v for %s (sha:%s)", MaxStreamDuration, dir, sha)
 			cmd.Process.Kill()
 			out.Close()
