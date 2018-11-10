@@ -58,7 +58,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 	errors := make(chan error, 100)
 	pool := NewBlameWorkerPool(ctx, errors, filter)
 	pool.Start()
-	commits := make(chan Commit, 1000)
+	commits := make(chan Commit, 50000)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	// start the goroutine for processing before we start processing

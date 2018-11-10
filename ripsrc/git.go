@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -159,7 +161,11 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 }
 
 // MaxStreamDuration is the maximum duration that a stream should run.
-var MaxStreamDuration = time.Minute * 20
+var (
+	MaxStreamDuration    = time.Minute * 20
+	MaxUnderReadAttempts = 10
+	MaxUnderReadDuration = time.Minute
+)
 
 // streamCommits will stream all the commits to the returned channel and block until completed
 func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- Commit, errors chan<- error) error {
@@ -198,6 +204,8 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	go func() {
 		select {
 		case <-time.After(MaxStreamDuration):
+			// fmt.Println("!!!!!!! ERROR MAX STREAM DURATION", dir)
+			debug.PrintStack()
 			errors <- fmt.Errorf("streaming commit has timed out after %v for %s (sha:%s)", MaxStreamDuration, dir, sha)
 			cmd.Process.Kill()
 			out.Close()
@@ -221,20 +229,37 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		ordinal := time.Now().Unix()
 		s := bufio.NewScanner(r)
 		s.Buffer(scanbuf.Bytes(), bufio.MaxScanTokenSize)
+		var underreadAttempts int
+		var underreadStarted time.Time
+	done:
 		for s.Scan() {
 			// fmt.Println("scan loop", s.Err())
 			if s.Err() != nil {
+				err := s.Err()
 				errmsg := s.Err().Error()
 				// fmt.Println("error", errmsg)
-				if strings.Contains(errmsg, "file already closed") || strings.Contains(errmsg, "broken pipe") {
-					break
+				if err == io.EOF || strings.Contains(errmsg, "file already closed") || strings.Contains(errmsg, "broken pipe") {
+					break done
 				}
-				errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, s.Err())
+				// fmt.Println("!!!!!!!!!!! ERROR detected", err)
+				if sha != "" {
+					errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, err)
+				} else {
+					errors <- fmt.Errorf("error reading while streaming commits from %v. %v", dir, err)
+				}
 				return
 			}
 			buf := s.Bytes()
 			// fmt.Println("buf>", len(buf), "string", string(buf))
 			if len(buf) == 0 {
+				if underreadAttempts == 0 {
+					underreadStarted = time.Now()
+				}
+				underreadAttempts++
+				if underreadAttempts >= MaxUnderReadAttempts || time.Since(underreadStarted) >= MaxUnderReadDuration {
+					// fmt.Println("!!!!!!!! max underread", underreadAttempts, "since=", time.Since(underreadStarted))
+					break done
+				}
 				continue
 			}
 			select {
@@ -242,6 +267,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				return
 			default:
 			}
+			underreadAttempts = 0
 			// fmt.Println(string(buf))
 			if bytes.HasPrefix(buf, commitPrefix) {
 				sha := string(buf[len(commitPrefix):])
@@ -251,13 +277,13 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 					sha = sha[0:i]
 				}
 				// send the old commit and create a new one
-				if commit != nil { // because we send when we detect the next commit
+				if commit != nil && commit.SHA != "" { // because we send when we detect the next commit
 					commits <- *commit
 					commit = nil
 				}
 				if limit > 0 && total >= limit {
 					commit = nil
-					break
+					break done
 				}
 				commit = &Commit{
 					Dir:     dir,
@@ -376,33 +402,43 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				}
 			}
 		}
-		if commit != nil {
+		if commit != nil && commit.SHA != "" {
 			select {
 			case commits <- *commit:
 				commit = nil
 				break
 			default:
-				fmt.Println("!!!!!!! ERROR: blocked trying to write commit to commit stream. this buffer is full")
+				// fmt.Println("!!!!!!! ERROR: blocked trying to write commit to commit stream. this buffer is full")
+				break
 			}
 		}
 	}()
 	if err := cmd.Start(); err != nil {
+		// fmt.Println("!!!!!!! ERROR RECEIVED IN START", err)
 		if strings.Contains(errout.String(), "does not have any commits yet") {
 			return fmt.Errorf("no commits found in repo at %s", dir)
 		}
 		if strings.Contains(errout.String(), "Not a git repository") {
 			return fmt.Errorf("not a valid git repo found in repo at %s", dir)
 		}
-		return fmt.Errorf("error running git log in dir %s, %v", dir, err)
+		return fmt.Errorf("error running git log in dir %s. %v. (%s)", dir, err, strings.TrimSpace(errout.String()))
 	}
 	started <- true
-	wg.Wait()
 	if err := cmd.Wait(); err != nil {
 		if !strings.Contains(err.Error(), "broken pipe") {
 			cancel()
-			return fmt.Errorf("error streaming commits from %v for sha %v. (err=%v). %v", dir, sha, err, strings.TrimSpace(errout.String()))
+			errmsg := strings.TrimSpace(errout.String())
+			if strings.Contains(errmsg, "does not have any commits yet") {
+				// this is OK, this just means we have a repo that is new with no commits
+				return nil
+			}
+			if sha != "" {
+				return fmt.Errorf("error streaming commits from %v for sha %v. (err=%v). %v [%s]", dir, sha, err, errmsg, strings.TrimSpace(errout.String()))
+			}
+			return fmt.Errorf("error streaming commits from %v. (err=%v). %v [%v]", dir, err, errmsg, strings.TrimSpace(errout.String()))
 		}
 	}
+	wg.Wait()
 	cancel()
 	return nil
 }
