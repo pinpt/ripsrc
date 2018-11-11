@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/pinpt/ripsrc/ripsrc/cmd"
 )
 
 // buffer pool to reduce GC
@@ -65,20 +67,19 @@ func (w *limitedWriter) Bytes() []byte {
 }
 
 func getBlobRef(ctx context.Context, dir string, sha string, filename string) (string, error) {
-	buf := getBuffer()
-	defer putBuffer(buf)
-	cmd := exec.CommandContext(ctx, "git", "ls-tree", sha, "--", filename)
-	cmd.Dir = dir
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = buf
-	if err := cmd.Run(); err != nil {
-		return "", err
+	git := cmd.NewCmd(gitCommand, "ls-tree", sha, "--", filename)
+	git.Dir = dir
+	status := <-git.Start()
+	if status.Error != nil {
+		return "", status.Error
 	}
-	tok := bytes.Split(buf.Bytes(), space)
-	if len(tok) > 2 {
-		tok = bytes.Split(tok[2], tab)
-		if len(tok) > 1 {
-			return strings.TrimSpace(string(tok[0])), nil
+	if len(status.Stdout) > 0 {
+		tok := strings.Split(status.Stdout[0], " ")
+		if len(tok) > 2 {
+			tok = strings.Split(tok[2], "\t")
+			if len(tok) > 1 {
+				return strings.TrimSpace(string(tok[0])), nil
+			}
 		}
 	}
 	return "", nil

@@ -1,21 +1,20 @@
 package ripsrc
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pinpt/ripsrc/ripsrc/cmd"
 )
 
 // CommitStatus is a commit status type
@@ -176,9 +175,6 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	if _, err := os.Stat(gitdir); os.IsNotExist(err) {
 		return nil
 	}
-	errout := getBuffer()
-	defer putBuffer(errout)
-	var cmd *exec.Cmd
 	args := []string{
 		"log",
 		"--raw",
@@ -191,217 +187,164 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	if sha != "" {
 		args = append(args, sha+"...")
 	}
-	newctx, cancel := context.WithCancel(ctx)
-	// fmt.Println(args)
-	cmd = exec.CommandContext(newctx, gitCommand, args...)
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		cancel()
-		return err
-	}
-	cmd.Dir = dir
-	cmd.Stderr = errout
+	gitlog := cmd.NewCmdOptions(cmd.Options{Buffered: false, Streaming: true}, gitCommand, args...)
+	gitlog.Dir = dir
+	var errMu sync.Mutex
+	var errorString strings.Builder
 	var wg sync.WaitGroup
-	var total int
-	// create a fail safe goroutine that will monitor the stream and force an error if it runs longer than 20m
-	go func() {
-		select {
-		case <-time.After(MaxStreamDuration):
-			// fmt.Println("!!!!!!! ERROR MAX STREAM DURATION", dir)
-			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
-			errors <- fmt.Errorf("streaming commit has timed out after %v for %s (sha:%s)", MaxStreamDuration, dir, sha)
-			cmd.Process.Kill()
-			out.Close()
-			cancel()
-		case <-newctx.Done():
-			return
-		}
-	}()
 	wg.Add(1)
-	started := make(chan bool)
 	go func() {
-		<-started
-		scanbuf := getBuffer()
-		defer func() {
-			out.Close()
-			wg.Done()
-			putBuffer(scanbuf)
-		}()
+		defer wg.Done()
 		var commit *Commit
-		r := bufio.NewReaderSize(out, 200) // most lines are pretty small for the result based on test sampling of sizes
+		var total int
 		ordinal := time.Now().Unix()
-		s := bufio.NewScanner(r)
-		s.Buffer(scanbuf.Bytes(), bufio.MaxScanTokenSize)
-		var underreadAttempts int
-		var underreadStarted time.Time
 	done:
-		for s.Scan() {
-			// fmt.Println("scan loop", s.Err())
-			if s.Err() != nil {
-				err := s.Err()
-				errmsg := s.Err().Error()
-				// fmt.Println("error", errmsg)
-				if err == io.EOF || strings.Contains(errmsg, "file already closed") || strings.Contains(errmsg, "broken pipe") {
-					break done
-				}
-				// fmt.Println("!!!!!!!!!!! ERROR detected", err)
-				if sha != "" {
-					errors <- fmt.Errorf("error reading while streaming commits from %v for sha %v. %v", dir, sha, err)
-				} else {
-					errors <- fmt.Errorf("error reading while streaming commits from %v. %v", dir, err)
-				}
-				return
-			}
-			buf := s.Bytes()
-			// fmt.Println("buf>", len(buf), "string", string(buf))
-			if len(buf) == 0 {
-				if underreadAttempts == 0 {
-					underreadStarted = time.Now()
-				}
-				underreadAttempts++
-				if underreadAttempts >= MaxUnderReadAttempts || time.Since(underreadStarted) >= MaxUnderReadDuration {
-					// fmt.Println("!!!!!!!! max underread", underreadAttempts, "since=", time.Since(underreadStarted))
-					break done
-				}
-				continue
-			}
+		for {
 			select {
-			case <-newctx.Done():
-				return
-			default:
-			}
-			underreadAttempts = 0
-			// fmt.Println(string(buf))
-			if bytes.HasPrefix(buf, commitPrefix) {
-				sha := string(buf[len(commitPrefix):])
-				i := strings.Index(sha, " ")
-				if i > 0 {
-					// trim off stuff after the sha since we can get tag info there
-					sha = sha[0:i]
+			case <-gitlog.Done():
+				break done
+			case line := <-gitlog.Stderr:
+				errMu.Lock()
+				errorString.WriteString(line)
+				errorString.WriteString("\n")
+				errMu.Unlock()
+			case line := <-gitlog.Stdout:
+				if line == "" {
+					continue
 				}
-				// send the old commit and create a new one
-				if commit != nil && commit.SHA != "" { // because we send when we detect the next commit
-					commits <- *commit
-					commit = nil
-				}
-				if limit > 0 && total >= limit {
-					commit = nil
-					break done
-				}
-				commit = &Commit{
-					Dir:     dir,
-					SHA:     string(sha),
-					Files:   make(map[string]*CommitFile, 0),
-					Ordinal: ordinal,
-				}
-				ordinal++
-				total++
-				continue
-			}
-			if bytes.HasPrefix(buf, datePrefix) {
-				d := bytes.TrimSpace(buf[len(datePrefix):])
-				t, err := parseDate(string(d))
-				if err != nil {
-					errors <- fmt.Errorf("error parsing commit %s in %s. %v", commit.SHA, dir, err)
-					return
-				}
-				commit.Date = t.UTC()
-				continue
-			}
-			if bytes.HasPrefix(buf, authorPrefix) {
-				commit.AuthorEmail = string(buf[len(authorPrefix):])
-				continue
-			}
-			if bytes.HasPrefix(buf, committerPrefix) {
-				commit.CommitterEmail = string(buf[len(committerPrefix):])
-				continue
-			}
-			if bytes.HasPrefix(buf, signedEmailPrefix) {
-				signedCommitLine := string(buf[len(signedEmailPrefix):])
-				if signedCommitLine != "" {
-					commit.Signed = true
-					signedEmail := parseEmail(signedCommitLine)
-					if signedEmail != "" {
-						// if signed, mark it as such as use this as the preferred email
-						commit.AuthorEmail = signedEmail
-					}
-				}
-				continue
-			}
-			if bytes.HasPrefix(buf, messagePrefix) {
-				commit.Message = string(buf[len(messagePrefix):])
-				continue
-			}
-			if bytes.HasPrefix(buf, parentPrefix) {
-				parent := string(buf[len(parentPrefix):])
-				commit.Parent = &parent
-				continue
-			}
-			if buf[0] == ':' {
+				buf := []byte(line)
 				// fmt.Println(string(buf))
-				// :100644␠100644␠d1a02ae0...␠a452aaac...␠M␉·pandora/pom.xml
-				tok1 := bytes.Split(buf, space)
-				mask := tok1[1]
-				// if the mask isn't a regular file or deleted file, skip it
-				if !bytes.Equal(mask, filenameMask) && !bytes.Equal(mask, deletedMask) {
+				if bytes.HasPrefix(buf, commitPrefix) {
+					sha := string(buf[len(commitPrefix):])
+					i := strings.Index(sha, " ")
+					if i > 0 {
+						// trim off stuff after the sha since we can get tag info there
+						sha = sha[0:i]
+					}
+					// send the old commit and create a new one
+					if commit != nil && commit.SHA != "" { // because we send when we detect the next commit
+						commits <- *commit
+						commit = nil
+					}
+					if limit > 0 && total >= limit {
+						commit = nil
+						break done
+					}
+					commit = &Commit{
+						Dir:     dir,
+						SHA:     string(sha),
+						Files:   make(map[string]*CommitFile, 0),
+						Ordinal: ordinal,
+					}
+					ordinal++
+					total++
 					continue
 				}
-				tok2 := bytes.Split(bytes.Join(tok1[4:], space), tab)
-				action := tok2[0]
-				paths := tok2[1:]
-				if len(action) == 1 {
-					fn := string(bytes.TrimLeft(paths[0], " "))
-					commit.Files[fn] = &CommitFile{
-						Filename: fn,
-						Status:   toCommitStatus(action),
+				if bytes.HasPrefix(buf, datePrefix) {
+					d := bytes.TrimSpace(buf[len(datePrefix):])
+					t, err := parseDate(string(d))
+					if err != nil {
+						errors <- fmt.Errorf("error parsing commit %s in %s. %v", commit.SHA, dir, err)
+						return
 					}
-				} else if bytes.HasPrefix(action, rPrefix) {
-					fromFn := string(bytes.TrimLeft(paths[0], " "))
-					toFn := string(bytes.TrimLeft(paths[1], " "))
-					commit.Files[fromFn] = &CommitFile{
-						Status:      GitFileCommitStatusRemoved,
-						Filename:    fromFn,
-						Renamed:     true,
-						RenamedFrom: fromFn,
-						RenamedTo:   toFn,
-					}
-					commit.Files[toFn] = &CommitFile{
-						Status:      GitFileCommitStatusAdded,
-						Filename:    toFn,
-						Renamed:     true,
-						RenamedFrom: fromFn,
-						RenamedTo:   toFn,
-					}
-				} else {
-					fn := string(bytes.TrimLeft(paths[0], " "))
-					commit.Files[fn] = &CommitFile{
-						Status:   toCommitStatus(action),
-						Filename: fn,
-					}
-				}
-				continue
-			}
-			tok := bytes.Split(buf, tab)
-			// handle the file stats output
-			if len(tok) == 3 {
-				tok := regSplit(string(buf), tabSplitter)
-				fn, oldfn, renamed := getFilename(tok[2])
-				file := commit.Files[fn]
-				if file == nil {
-					// this is OK, just means it was a special entry such as directory only, skip this one
+					commit.Date = t.UTC()
 					continue
 				}
-				if renamed {
-					file.RenamedFrom = oldfn
-					file.Renamed = true
+				if bytes.HasPrefix(buf, authorPrefix) {
+					commit.AuthorEmail = string(buf[len(authorPrefix):])
+					continue
 				}
-				if tok[0] == "-" {
-					file.Binary = true
-				} else {
-					adds, _ := strconv.ParseInt(tok[0], 10, 32)
-					dels, _ := strconv.ParseInt(tok[1], 10, 32)
-					file.Additions = int(adds)
-					file.Deletions = int(dels)
+				if bytes.HasPrefix(buf, committerPrefix) {
+					commit.CommitterEmail = string(buf[len(committerPrefix):])
+					continue
+				}
+				if bytes.HasPrefix(buf, signedEmailPrefix) {
+					signedCommitLine := string(buf[len(signedEmailPrefix):])
+					if signedCommitLine != "" {
+						commit.Signed = true
+						signedEmail := parseEmail(signedCommitLine)
+						if signedEmail != "" {
+							// if signed, mark it as such as use this as the preferred email
+							commit.AuthorEmail = signedEmail
+						}
+					}
+					continue
+				}
+				if bytes.HasPrefix(buf, messagePrefix) {
+					commit.Message = string(buf[len(messagePrefix):])
+					continue
+				}
+				if bytes.HasPrefix(buf, parentPrefix) {
+					parent := string(buf[len(parentPrefix):])
+					commit.Parent = &parent
+					continue
+				}
+				if buf[0] == ':' {
+					// fmt.Println(string(buf))
+					// :100644␠100644␠d1a02ae0...␠a452aaac...␠M␉·pandora/pom.xml
+					tok1 := bytes.Split(buf, space)
+					mask := tok1[1]
+					// if the mask isn't a regular file or deleted file, skip it
+					if !bytes.Equal(mask, filenameMask) && !bytes.Equal(mask, deletedMask) {
+						continue
+					}
+					tok2 := bytes.Split(bytes.Join(tok1[4:], space), tab)
+					action := tok2[0]
+					paths := tok2[1:]
+					if len(action) == 1 {
+						fn := string(bytes.TrimLeft(paths[0], " "))
+						commit.Files[fn] = &CommitFile{
+							Filename: fn,
+							Status:   toCommitStatus(action),
+						}
+					} else if bytes.HasPrefix(action, rPrefix) {
+						fromFn := string(bytes.TrimLeft(paths[0], " "))
+						toFn := string(bytes.TrimLeft(paths[1], " "))
+						commit.Files[fromFn] = &CommitFile{
+							Status:      GitFileCommitStatusRemoved,
+							Filename:    fromFn,
+							Renamed:     true,
+							RenamedFrom: fromFn,
+							RenamedTo:   toFn,
+						}
+						commit.Files[toFn] = &CommitFile{
+							Status:      GitFileCommitStatusAdded,
+							Filename:    toFn,
+							Renamed:     true,
+							RenamedFrom: fromFn,
+							RenamedTo:   toFn,
+						}
+					} else {
+						fn := string(bytes.TrimLeft(paths[0], " "))
+						commit.Files[fn] = &CommitFile{
+							Status:   toCommitStatus(action),
+							Filename: fn,
+						}
+					}
+					continue
+				}
+				tok := bytes.Split(buf, tab)
+				// handle the file stats output
+				if len(tok) == 3 {
+					tok := regSplit(string(buf), tabSplitter)
+					fn, oldfn, renamed := getFilename(tok[2])
+					file := commit.Files[fn]
+					if file == nil {
+						// this is OK, just means it was a special entry such as directory only, skip this one
+						continue
+					}
+					if renamed {
+						file.RenamedFrom = oldfn
+						file.Renamed = true
+					}
+					if tok[0] == "-" {
+						file.Binary = true
+					} else {
+						adds, _ := strconv.ParseInt(tok[0], 10, 32)
+						dels, _ := strconv.ParseInt(tok[1], 10, 32)
+						file.Additions = int(adds)
+						file.Deletions = int(dels)
+					}
 				}
 			}
 		}
@@ -416,32 +359,12 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			}
 		}
 	}()
-	if err := cmd.Start(); err != nil {
-		// fmt.Println("!!!!!!! ERROR RECEIVED IN START", err)
-		if strings.Contains(errout.String(), "does not have any commits yet") {
-			return fmt.Errorf("no commits found in repo at %s", dir)
-		}
-		if strings.Contains(errout.String(), "Not a git repository") {
-			return fmt.Errorf("not a valid git repo found in repo at %s", dir)
-		}
-		return fmt.Errorf("error running git log in dir %s. %v. (%s)", dir, err, strings.TrimSpace(errout.String()))
-	}
-	started <- true
-	if err := cmd.Wait(); err != nil {
-		if !strings.Contains(err.Error(), "broken pipe") {
-			cancel()
-			errmsg := strings.TrimSpace(errout.String())
-			if strings.Contains(errmsg, "does not have any commits yet") {
-				// this is OK, this just means we have a repo that is new with no commits
-				return nil
-			}
-			if sha != "" {
-				return fmt.Errorf("error streaming commits from %v for sha %v. (err=%v). %v [%s]", dir, sha, err, errmsg, strings.TrimSpace(errout.String()))
-			}
-			return fmt.Errorf("error streaming commits from %v. (err=%v). %v [%v]", dir, err, errmsg, strings.TrimSpace(errout.String()))
-		}
-	}
+	<-gitlog.Start()
 	wg.Wait()
-	cancel()
+	if gitlog.Status().Error != nil {
+		return gitlog.Status().Error
+	} else if errorString.Len() > 0 {
+		return fmt.Errorf("error streaming commits from %v. %v", dir, strings.TrimSpace(errorString.String()))
+	}
 	return nil
 }
