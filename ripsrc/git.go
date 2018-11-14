@@ -176,6 +176,7 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		return nil
 	}
 	args := []string{
+		"-c", "diff.renameLimit=999999",
 		"log",
 		"--raw",
 		"--reverse",
