@@ -11,9 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sergi/go-diff/diffmatchpatch"
-
 	"github.com/pinpt/ripsrc/ripsrc/patch"
+	"github.com/sergi/go-diff/diffmatchpatch"
 
 	"github.com/karrick/godirwalk"
 )
@@ -92,14 +91,53 @@ func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *F
 		defer wg.Done()
 		files := make(map[string]*patch.File)
 		for commit := range commits {
+			// check for copies in this commit.  when we have a git copy, git will annotate
+			// that one file was copied from another and then any changes to the file post copy
+			// as part of the commit will reference the previous file (that was copied). in this
+			// case we need to use the copy prior to any changes since if the file that was copied
+			// has changes, it will also be in the files list.  so we make a map of the changes
+			// *prior* to the commit so that we can reference it below
+			var copies map[string]*patch.File
 			for _, file := range commit.diff.files {
+				fe := commit.Files[file.Filename]
+				if fe.Copied {
+					if copies == nil {
+						copies = make(map[string]*patch.File)
+					}
+					found := files[fe.CopiedFrom]
+					copies[fe.Filename] = found
+				}
+			}
+			for _, file := range commit.diff.files {
+				fe := commit.Files[file.Filename]
+				if RipDebug {
+					switch fe.Status {
+					case GitFileCommitStatusAdded:
+						if fe.Renamed {
+							fmt.Println(commit.SHA, file.Filename, fe.Status, "renamed", fe.RenamedFrom, "=>", fe.RenamedTo)
+						} else if fe.Copied {
+							fmt.Println(commit.SHA, file.Filename, fe.Status, "copied from =>", fe.CopiedFrom)
+						} else {
+							fmt.Println(commit.SHA, file.Filename, fe.Status)
+						}
+					case GitFileCommitStatusModified:
+						fmt.Println(commit.SHA, file.Filename, fe.Status)
+					case GitFileCommitStatusRemoved:
+						if fe.Renamed {
+							fmt.Println(commit.SHA, file.Filename, fe.Status, "renamed", fe.RenamedFrom, "=>", fe.RenamedTo)
+						} else {
+							fmt.Println(commit.SHA, file.Filename, fe.Status)
+						}
+					}
+				}
 				current := files[file.Filename]
-				cf := commit.Files[file.Filename]
-				if cf.Renamed {
-					current = files[cf.RenamedFrom]
+				if fe.Renamed {
+					current = files[fe.RenamedFrom]
+				} else if fe.Copied {
+					current = copies[file.Filename]
 				}
 				newfile := file.Apply(current, commit)
-				if validate {
+				if validate && fe.Status == GitFileCommitStatusModified {
 					newbuf := newfile.String()
 					var oldbufb bytes.Buffer
 					c := exec.Command("git", "show", commit.SHA+":"+file.Filename)
@@ -196,3 +234,6 @@ func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *F
 	}
 	return nil
 }
+
+// RipDebug is a setting for printing out detail during rip
+var RipDebug = os.Getenv("RIPSRC_DEBUG") == "true"

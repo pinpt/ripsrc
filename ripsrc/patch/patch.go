@@ -3,6 +3,7 @@ package patch
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -87,8 +88,9 @@ func (f *File) Stringify(linenums bool) string {
 		}
 	}
 	out := strings.Join(lines, "\n")
-	if f.noeol && out[len(out)-1:] == "\n" {
-		out = out[0 : len(out)-1]
+	l := len(out)
+	if f.noeol && l > 0 && out[l-1:] == "\n" {
+		out = out[0 : l-1]
 	}
 	return out
 }
@@ -98,6 +100,7 @@ type Commit interface {
 	CommitSHA() string
 	Author() string
 	CommitDate() time.Time
+	IsBinary(filename string) bool
 }
 
 func padRight(str string, length int, pad byte) string {
@@ -186,6 +189,9 @@ func (p *Patch) Apply(file *File, commit Commit) *File {
 			newfile.Lines[i] = &Line{l.Buffer, l.Commit}
 		}
 	}
+	if commit.IsBinary(p.Filename) { //fast path
+		return newfile
+	}
 	for _, hunk := range p.hunks {
 		for _, o := range hunk.operations {
 			offset := o.offset
@@ -207,11 +213,12 @@ func (p *Patch) Apply(file *File, commit Commit) *File {
 				}
 			case operationDel:
 				if offset+1 > len(newfile.Lines) {
+					fmt.Println("commit", commit.CommitSHA(), p.Filename, hunk.context, offset)
 					fmt.Println(p.Filename, o)
 					fmt.Println(file)
 					fmt.Println("--> current lines=>", newfile.Stringify(true))
 					fmt.Println(hunk.context)
-					panic(fmt.Sprintf("invalid patch for %v. need to delete line %d but only has %d lines", p.Filename, offset, len(newfile.Lines)))
+					panic(fmt.Sprintf("invalid patch for commit %s and file %s. need to delete line %d but only has %d lines", commit.CommitSHA(), p.Filename, offset, len(newfile.Lines)))
 				}
 				if Debug {
 					fmt.Println("removing line at", offset, ">>>", newfile.Lines[offset], "len", len(newfile.Lines))
@@ -324,4 +331,4 @@ const (
 )
 
 // Debug turns on verbose debug output
-var Debug = false
+var Debug = os.Getenv("RIPSRC_PATCH_DEBUG") == "true"

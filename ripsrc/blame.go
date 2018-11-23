@@ -76,6 +76,7 @@ const (
 	pathInvalid        = "file path was invalid"
 	languageUnknown    = "language was unknown"
 	fileNotSupported   = "file type was not supported as source code"
+	fileBinary         = "file was binary"
 )
 
 func (p *BlameProcessor) isVendored(filename string) bool {
@@ -144,6 +145,23 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 			Complexity:         0,
 			WeightedComplexity: 0,
 			Skipped:            "",
+			License:            nil,
+			Status:             cf.Status,
+		}, nil
+	}
+	if cf.Binary { // fast path
+		return true, &BlameResult{
+			Commit:             job.commit,
+			Language:           "",
+			Filename:           filename,
+			Lines:              nil,
+			Loc:                0,
+			Sloc:               0,
+			Comments:           0,
+			Blanks:             0,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            fileBinary,
 			License:            nil,
 			Status:             cf.Status,
 		}, nil

@@ -37,8 +37,10 @@ type CommitFile struct {
 	Filename    string
 	Status      CommitStatus
 	Renamed     bool
+	Copied      bool
 	RenamedFrom string
 	RenamedTo   string
+	CopiedFrom  string
 	Additions   int
 	Deletions   int
 	Binary      bool
@@ -86,6 +88,10 @@ func (c Commit) CommitDate() time.Time {
 	return c.Date
 }
 
+func (c Commit) IsBinary(filename string) bool {
+	return c.Files[filename].Binary
+}
+
 var (
 	commitPrefix        = []byte("!SHA: ")
 	authorPrefix        = []byte("!Author: ")
@@ -100,8 +106,8 @@ var (
 	datePrefix          = []byte("!Date: ")
 	space               = []byte(" ")
 	tab                 = []byte("\t")
-	rPrefix             = []byte("R")
-	cPrefix             = []byte("C")
+	removePrefix        = []byte("R")
+	copyPrefix          = []byte("C")
 	filenameMask        = regexp.MustCompile("^(100644|100755)$")
 	deletedMask         = []byte("000000")
 	renameRe            = regexp.MustCompile("(.*)\\{(.*) => (.*)\\}(.*)")
@@ -225,7 +231,9 @@ func (p *parser) parse(line string) (bool, error) {
 	if line == "" {
 		return true, nil
 	}
-	// fmt.Println(line)
+	if Debug {
+		fmt.Println(line)
+	}
 	buf := []byte(line)
 	for {
 		switch p.state {
@@ -334,7 +342,8 @@ func (p *parser) parse(line string) (bool, error) {
 						Filename: fn,
 						Status:   toCommitStatus(action),
 					}
-				} else if bytes.HasPrefix(action, rPrefix) || bytes.HasPrefix(action, cPrefix) {
+				} else if bytes.HasPrefix(action, removePrefix) {
+					// rename
 					fromFn := string(bytes.TrimLeft(paths[0], " "))
 					toFn := string(bytes.TrimLeft(paths[1], " "))
 					// panic("renaming [" + fromFn + "] => [" + toFn + "]")
@@ -352,6 +361,16 @@ func (p *parser) parse(line string) (bool, error) {
 						RenamedFrom: fromFn,
 						RenamedTo:   toFn,
 					}
+				} else if bytes.HasPrefix(action, copyPrefix) {
+					// copy a file into a new file ... it's basically a new file
+					fromFn := string(bytes.TrimLeft(paths[0], " "))
+					toFn := string(bytes.TrimLeft(paths[1], " "))
+					p.commit.Files[toFn] = &CommitFile{
+						Status:     GitFileCommitStatusAdded,
+						Filename:   toFn,
+						Copied:     true,
+						CopiedFrom: fromFn,
+					}
 				} else {
 					fn := string(bytes.TrimLeft(paths[0], " "))
 					p.commit.Files[fn] = &CommitFile{
@@ -368,16 +387,12 @@ func (p *parser) parse(line string) (bool, error) {
 			// handle the file stats output
 			if len(tok) == 3 {
 				tok := regSplit(string(buf), tabSplitter)
-				fn, oldfn, renamed := getFilename(tok[2])
+				fn, _, _ := getFilename(tok[2])
 				file := p.commit.Files[fn]
 				// fmt.Println("num stats", fn, "=>", oldfn, "renamed", renamed, "is nil?", file == nil)
 				if file == nil {
 					// this is OK, just means it was a special entry such as directory only, skip this one
 					return true, nil
-				}
-				if renamed {
-					file.RenamedFrom = oldfn
-					file.Renamed = true
 				}
 				if tok[0] == "-" {
 					file.Binary = true
@@ -438,6 +453,9 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	if sha != "" {
 		args = append(args, sha+"...")
 	}
+	if Debug {
+		fmt.Println(dir, gitCommand, strings.Join(args, " "))
+	}
 	// stream to a temp file and then re-read it in ... seems to be way more stable
 	tmpfn := filepath.Join(os.TempDir(), fmt.Sprintf("ripsrc-%v-%d.txt", time.Now().UnixNano(), rand.Int()))
 	fn, err := os.Create(tmpfn)
@@ -481,3 +499,6 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	}
 	return nil
 }
+
+// Debug can be turned off to emit lots of debug info
+var Debug = os.Getenv("RIPSRC_GIT_DEBUG") == "true"
