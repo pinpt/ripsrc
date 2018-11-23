@@ -27,11 +27,15 @@
 
 [[constraint]]
   name = "github.com/boyter/scc"
-  version = "1.10.0"
+  version = "1.9.0"
 
 [[constraint]]
   name = "github.com/fatih/color"
   version = "1.7.0"
+
+[[constraint]]
+  name = "github.com/jhaynie/gitblame"
+  version = "0.0.6"
 
 [[constraint]]
   name = "github.com/karrick/godirwalk"

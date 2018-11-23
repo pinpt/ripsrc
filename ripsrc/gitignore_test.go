@@ -17,7 +17,7 @@ func TestGitIgnorePatterns(t *testing.T) {
 
 func TestShouldIgnore(t *testing.T) {
 	assert := assert.New(t)
-	b := &BlameWorkerPool{
+	b := &BlameProcessor{
 		hashedExclusions: make(map[string]*exclusionDecision),
 	}
 	ok, reason := b.shouldProcess("go.mod")
@@ -40,7 +40,7 @@ func BenchmarkIgnorePatterns10(b *testing.B) {
 
 func BenchmarkIgnore10(b *testing.B) {
 	assert := assert.New(b)
-	w := &BlameWorkerPool{
+	w := &BlameProcessor{
 		hashedExclusions: make(map[string]*exclusionDecision),
 	}
 	for n := 0; n < b.N; n++ {

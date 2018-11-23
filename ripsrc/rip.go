@@ -1,12 +1,19 @@
 package ripsrc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"strings"
 	"sync"
+
+	"github.com/sergi/go-diff/diffmatchpatch"
+
+	"github.com/pinpt/ripsrc/ripsrc/patch"
 
 	"github.com/karrick/godirwalk"
 )
@@ -46,95 +53,122 @@ type Filter struct {
 	Limit int
 }
 
+func formatBuf(line string) string {
+	toks := strings.Split(line, "\n")
+	newtoks := []string{}
+	for i, tok := range toks {
+		newtoks = append(newtoks, fmt.Sprintf("%02d|%s", 1+i, tok))
+	}
+	return strings.Join(newtoks, "\n")
+}
+
+type commitjob struct {
+	commit Commit
+	file   patch.File
+}
+
 // Rip will rip through the directory provided looking for git directories
 // and will stream blame details for each commit back to results
 // the results channel will automatically be called once all the commits are
 // streamed. this function will block until all results are streamed
-func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Filter) error {
+func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *Filter, validate bool) error {
+	dir, _ := filepath.Abs(fdir)
 	gitdirs, err := findGitDir(dir)
 	if err != nil {
 		return fmt.Errorf("error finding git dir from %v. %v", dir, err)
 	}
 	errors := make(chan error, 100)
-	pool := NewBlameWorkerPool(ctx, errors, filter)
-	pool.Start()
-	commits := make(chan Commit, 50000)
+	var size int
+	if !validate {
+		size = 1000
+	}
+	processor := NewBlameProcessor(filter)
+	commits := make(chan Commit, size)
+	commitjobs := make(chan commitjob, size)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	// start the goroutine for processing before we start processing
 	go func() {
 		defer wg.Done()
-		var count int
-		backlog := make(map[string][]*BlameResult)
-		var mu sync.Mutex
-		// feed each commit into our worker pool for blame processing
+		files := make(map[string]*patch.File)
 		for commit := range commits {
-			total := len(commit.Files)
-			if total == 0 {
-				continue
-			}
-			var filecount int
-			currentSha := commit.SHA
-			res := make(chan BlameResult, total)
-			localerrors := make(chan error, total)
-			// submit will send the commit job for async processing ... however, we need to stream them
-			// back to the results channel in order that they were originally committed so we're going to
-			// have to reorder the results and cache the pending ones that finish before the right order
-			pool.Submit(commit, func(err error, result *BlameResult, total int) {
-				mu.Lock()
-				defer mu.Unlock()
-				// fmt.Println("RESULT", result.Commit.SHA, result.Filename, filecount+1, total, "->", currentSha)
-				filecount++
-				last := total == filecount
-				if err != nil {
-					localerrors <- err
-				} else {
-					if result != nil {
-						arr := backlog[result.Commit.SHA]
-						if arr == nil {
-							arr = make([]*BlameResult, 0)
-						}
-						arr = append(arr, result)
-						backlog[result.Commit.SHA] = arr
-						if currentSha != result.Commit.SHA {
-							panic("sha out of order: expected:" + result.Commit.SHA + " but was:" + currentSha) // logic check
-						}
-						// if the current sha matches the one we're looking for and it's the last result
-						// we can go ahead and flush (send) and move the index forward to the next sha we're looking for
-						if last {
-							// sort so it's predictable for the order of the filename
-							sort.Slice(arr, func(i, j int) bool {
-								return arr[i].Filename < arr[j].Filename
-							})
-							for _, r := range arr {
-								res <- *r
-								count++
+			for _, file := range commit.diff.files {
+				current := files[file.Filename]
+				cf := commit.Files[file.Filename]
+				if cf.Renamed {
+					current = files[cf.RenamedFrom]
+				}
+				newfile := file.Apply(current, commit)
+				if validate {
+					newbuf := newfile.String()
+					var oldbufb bytes.Buffer
+					c := exec.Command("git", "show", commit.SHA+":"+file.Filename)
+					c.Stdout = &oldbufb
+					c.Stderr = os.Stderr
+					c.Dir = dir
+					c.Run()
+					newbuf = strings.TrimSpace(newbuf)
+					oldbuf := strings.TrimSpace(oldbufb.String())
+					if newbuf != oldbuf {
+						fmt.Println("invalid commit diff", commit.SHA, file.Filename)
+						for _, df := range commit.diff.files {
+							if df.Filename == file.Filename {
+								fmt.Println("diff which was applied:" + df.String())
+								break
 							}
-							close(res)
-							// delete the save memory
-							delete(backlog, result.Commit.SHA)
-							if len(backlog) != 0 {
-								panic("backlog should be empty") // logic check
-							}
-							arr = nil
 						}
-					} else {
-						panic("ripsrc git blame returned a nil result")
+						fmt.Println(strings.Repeat("-", 120))
+						if current != nil {
+							fmt.Println("applied to >>" + current.Stringify(true) + "<<")
+						} else {
+							fmt.Println("applied to >><<")
+						}
+						fmt.Println(strings.Repeat("-", 120))
+						dmp := diffmatchpatch.New()
+						diffs := dmp.DiffMain(oldbuf, newbuf, true)
+						fmt.Println("DIFFERENCE:")
+						fmt.Println(dmp.DiffPrettyText(diffs))
+						fmt.Println(strings.Repeat("-", 120))
+						fmt.Println("EXPECTED >>" + oldbuf + "<<")
+						fmt.Println(strings.Repeat("-", 120))
+						fmt.Println("WAS >>" + newbuf + "<<")
+						fmt.Println("PREVIOUS COMMITS FOR FILE:")
+						fmt.Println(strings.Repeat("-", 120))
+						p := commit.parent
+						for p != nil {
+							tf := p.Files[file.Filename]
+							if tf != nil {
+								fmt.Println(p.CommitSHA(), p.Date, p.Author(), p.Message)
+								for _, diff := range p.diff.files {
+									if diff.Filename == file.Filename {
+										fmt.Println(diff)
+										fmt.Println(strings.Repeat("-", 120))
+										break
+									}
+								}
+							}
+							p = p.parent
+						}
+						os.Exit(1)
 					}
 				}
-			})
-			// wait for all files in the commit to be processed before continuing so that commits
-			// are ordered properly
-			for i := 0; i < total; i++ {
-				results <- <-res
+				files[file.Filename] = newfile
+				commitjobs <- commitjob{commit, *newfile}
 			}
-			// check to see if we had an error and if so, send it on and then stop processing
-			select {
-			case err := <-localerrors:
+		}
+		close(commitjobs)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for job := range commitjobs {
+			result, err := processor.process(job)
+			if err != nil {
 				errors <- err
 				return
-			default:
-				break
+			}
+			if result != nil {
+				results <- *result
 			}
 		}
 	}()
@@ -154,7 +188,6 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 	}
 	close(commits)
 	wg.Wait()
-	pool.Close()
 	select {
 	case err := <-errors:
 		return err
