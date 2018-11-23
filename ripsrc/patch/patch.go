@@ -53,7 +53,7 @@ type hunk struct {
 // Line is a specific line in a file
 type Line struct {
 	Buffer string
-	Commit interface{} // allow this to be set by the caller
+	Commit Commit
 }
 
 // File is an abstraction over a set of lines in a file
@@ -93,7 +93,8 @@ func (f *File) Stringify(linenums bool) string {
 	return out
 }
 
-type commit interface {
+// Commit interface
+type Commit interface {
 	CommitSHA() string
 	Author() string
 	CommitDate() time.Time
@@ -117,12 +118,10 @@ func (f *File) Blame() string {
 	lines := make([]string, 0)
 	if f.Lines != nil {
 		for i, line := range f.Lines {
-			if commit, ok := line.Commit.(commit); ok {
-				sha := commit.CommitSHA()
-				ts := commit.CommitDate()
-				author := commit.Author()
-				lines = append(lines, fmt.Sprintf("%s (%s %s %d) %s", sha[0:6], padRight(author, 15, ' '), ts.UTC().Format(time.RFC822Z), 1+i, line.Buffer))
-			}
+			sha := line.Commit.CommitSHA()
+			ts := line.Commit.CommitDate()
+			author := line.Commit.Author()
+			lines = append(lines, fmt.Sprintf("%s (%s %s %d) %s", sha[0:6], padRight(author, 15, ' '), ts.UTC().Format(time.RFC822Z), 1+i, line.Buffer))
 		}
 	}
 	out := strings.Join(lines, "\n")
@@ -138,7 +137,7 @@ func NewFile(name string) *File {
 }
 
 // Parse will parse the buffer into a set of lines inside the file
-func (f *File) Parse(buf string, commit interface{}) error {
+func (f *File) Parse(buf string, commit Commit) error {
 	lines := strings.Split(buf, "\n")
 	for _, line := range lines {
 		f.Lines = append(f.Lines, &Line{line, commit})
@@ -176,7 +175,7 @@ func (p *Patch) String() string {
 }
 
 // Apply will apply a patch to an existing file for a new commit and return the new File with merged patch
-func (p *Patch) Apply(file *File, commit interface{}) *File {
+func (p *Patch) Apply(file *File, commit Commit) *File {
 	newfile := NewFile(p.Filename)
 	if file == nil {
 		newfile.Lines = make([]*Line, 0)
