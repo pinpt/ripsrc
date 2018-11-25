@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -206,10 +207,8 @@ func (c *commitFileHistory) GetPreviousCommitSHA(filename string, commit string)
 	return found
 }
 
-var badre = regexp.MustCompile("([\\.\\s\\/\\\\]+)")
-
 func (c *commitFileHistory) getFilename(commit string, filename string) string {
-	fn := badre.ReplaceAllString(filename, "_")
+	fn := fmt.Sprintf("%x", sha1.Sum([]byte(filename)))
 	return fmt.Sprintf("%s_%s.json.gz", commit, fn)
 }
 

@@ -77,7 +77,7 @@ func TestGetFilename(t *testing.T) {
 func TestGetFilenameEscaping(t *testing.T) {
 	assert := assert.New(t)
 	var c commitFileHistory
-	assert.Equal("123__foo_bar_go.json.gz", c.getFilename("123", "/foo/bar.go"))
-	assert.Equal("123_foo_bar_go.json.gz", c.getFilename("123", "foo bar.go"))
-	assert.Equal("123_foo_bar_go.json.gz", c.getFilename("123", fmt.Sprintf("foo%cbar.go", '\\')))
+	assert.Equal("123_8a6189f6cae8b1afab3cf63ad611f9e5bb88422f.json.gz", c.getFilename("123", "/foo/bar.go"))
+	assert.Equal("123_d500d241933c3446619730654c7acf3670227373.json.gz", c.getFilename("123", "foo bar.go"))
+	assert.Equal("123_257352a2942388a2924bb6e7e353f5352181cb9d.json.gz", c.getFilename("123", fmt.Sprintf("foo%cbar.go", '\\')))
 }

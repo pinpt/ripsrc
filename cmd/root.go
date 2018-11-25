@@ -76,25 +76,35 @@ var rootCmd = &cobra.Command{
 			}
 		}
 		var count int
-		results := make(chan ripsrc.BlameResult, 10)
-		resultsDone := make(chan bool, 1)
-		go func() {
-			for blame := range results {
-				count++
-				var license string
-				if blame.License != nil {
-					license = fmt.Sprintf("%v (%.0f%%)", color.RedString(blame.License.Name), 100*blame.License.Confidence)
+		createRepoProcessor := func(repo string, printname bool) (chan bool, chan ripsrc.BlameResult) {
+			resultsDone := make(chan bool, 1)
+			results := make(chan ripsrc.BlameResult, 10)
+			go func() {
+				var repostr string
+				if printname {
+					repostr = color.HiYellowString("%s ", repo)
 				}
-				fmt.Fprintf(color.Output, "[%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
-			}
-			resultsDone <- true
-		}()
+				for blame := range results {
+					count++
+					var license string
+					if blame.License != nil {
+						license = fmt.Sprintf("%v (%.0f%%)", color.RedString(blame.License.Name), 100*blame.License.Confidence)
+					}
+					fmt.Fprintf(color.Output, "%s[%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", repostr, color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
+				}
+				resultsDone <- true
+			}()
+			return resultsDone, results
+		}
 		started := time.Now()
 		if f, err := os.Stat(filepath.Join(args[0], ".git")); err == nil && f.IsDir() {
+			resultsDone, results := createRepoProcessor("", false)
 			if err := ripsrc.Rip(ctx, args[0], results, filter); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
+			close(results)
+			<-resultsDone
 		} else {
 			files, err := ioutil.ReadDir(args[0])
 			if err != nil {
@@ -102,16 +112,17 @@ var rootCmd = &cobra.Command{
 			}
 			for _, dir := range files {
 				fd, _ := filepath.Abs(filepath.Join(args[0], dir.Name(), ".git"))
+				resultsDone, results := createRepoProcessor(filepath.Base(filepath.Dir(filepath.Dir(fd)))+"/"+filepath.Base(filepath.Dir(fd)), true)
 				if _, err := os.Stat(fd); err == nil {
 					if err := ripsrc.Rip(ctx, filepath.Dir(fd), results, filter); err != nil {
 						fmt.Println(err)
 						os.Exit(1)
 					}
 				}
+				close(results)
+				<-resultsDone
 			}
 		}
-		close(results)
-		<-resultsDone
 		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
 	},
 }
