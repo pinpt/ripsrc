@@ -39,7 +39,7 @@ type License struct {
 	Confidence float32 `json:"confidence"`
 }
 
-var licenses = regexp.MustCompile("^|\\/(LICENSE|LICENCE|README|COPYING|LICENSE-.*|UNLICENSE)(\\.(md|txt))?$")
+var licenses = regexp.MustCompile("\\/?(LICENSE|LICENCE|README|COPYING|LICENSE-.*|UNLICENSE|UNLICENCE)(\\.(md|txt))?$")
 
 func possibleLicense(filename string) bool {
 	return licenses.MatchString(filename)

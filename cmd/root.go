@@ -90,8 +90,7 @@ var rootCmd = &cobra.Command{
 			resultsDone <- true
 		}()
 		started := time.Now()
-		validate, _ := cmd.Flags().GetBool("validate")
-		if err := ripsrc.Rip(ctx, args[0], results, filter, validate); err != nil {
+		if err := ripsrc.Rip(ctx, args[0], results, filter); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -108,7 +107,6 @@ func Execute() {
 	rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
 	rootCmd.Flags().String("sha", "", "start streaming from sha")
 	rootCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
-	rootCmd.Flags().Bool("validate", false, "if true, will validate the after diffs for each commit against git")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -3,17 +3,24 @@ package ripsrc
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
-	"math/rand"
+	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/pinpt/ripsrc/ripsrc/patch"
 )
 
 // CommitStatus is a commit status type
@@ -63,33 +70,24 @@ type Commit struct {
 	Message        string
 	Parent         *string
 	Signed         bool
+	Merge          bool
+	Parents        []string
 
 	callback Callback
 	diff     *diff
-	parent   *Commit
-}
-
-func (c Commit) CommitSHA() string {
-	return c.SHA
+	debug    strings.Builder
 }
 
 func (c Commit) String() string {
 	return c.SHA
 }
 
+// Author returns either the author name (preference) or the email if not found
 func (c Commit) Author() string {
 	if c.AuthorName != "" {
 		return c.AuthorName
 	}
 	return c.AuthorEmail
-}
-
-func (c Commit) CommitDate() time.Time {
-	return c.Date
-}
-
-func (c Commit) IsBinary(filename string) bool {
-	return c.Files[filename].Binary
 }
 
 var (
@@ -100,7 +98,6 @@ var (
 	committerNamePrefix = []byte("!CName: ")
 	signedEmailPrefix   = []byte("!Signed-Email: ")
 	messagePrefix       = []byte("!Message: ")
-	parentPrefix        = []byte("!Parent: ")
 	emailRegex          = regexp.MustCompile("<(.*)>")
 	emailBracketsRegex  = regexp.MustCompile("^\\[(.*)\\]$")
 	datePrefix          = []byte("!Date: ")
@@ -116,19 +113,13 @@ var (
 func toCommitStatus(name []byte) CommitStatus {
 	switch string(name) {
 	case "A":
-		{
-			return GitFileCommitStatusAdded
-		}
+		return GitFileCommitStatusAdded
 	case "D":
-		{
-			return GitFileCommitStatusRemoved
-		}
-	case "M", "R", "C", "MM":
-		{
-			return GitFileCommitStatusModified
-		}
+		return GitFileCommitStatusRemoved
+	case "M", "R", "C", "MM", "T":
+		return GitFileCommitStatusModified
 	}
-	return GitFileCommitStatusModified
+	panic("unknown commit status: " + string(name))
 }
 
 func parseDate(d string) (time.Time, error) {
@@ -176,6 +167,9 @@ var (
 	tabSplitter        = regexp.MustCompile("\\t")
 	spaceSplitter      = regexp.MustCompile("[ ]")
 	whitespaceSplitter = regexp.MustCompile("\\s+")
+
+	// allow our test case to change the executable
+	gitCommand, _ = exec.LookPath("git")
 )
 
 func regSplit(text string, splitter *regexp.Regexp) []string {
@@ -190,15 +184,299 @@ func regSplit(text string, splitter *regexp.Regexp) []string {
 	return result
 }
 
-// MaxStreamDuration is the maximum duration that a stream should run.
-var (
-	MaxStreamDuration    = time.Minute * 20
-	MaxUnderReadAttempts = 10
-	MaxUnderReadDuration = time.Minute
-)
+type commitFileHistory struct {
+	gitcachedir string
+	mu          sync.RWMutex
+	diffs       map[string]*diff
+	wg          *sync.WaitGroup
+}
 
-// allow our test case to change the executable
-var gitCommand, _ = exec.LookPath("git")
+func (c *commitFileHistory) GetPreviousCommitSHA(filename string, commit string) string {
+	var found string
+	c.mu.RLock()
+	diff := c.diffs[filename]
+	if diff != nil {
+		for i, history := range diff.history {
+			if history.SHA == commit {
+				found = diff.history[i-1].SHA
+				break
+			}
+		}
+	}
+	c.mu.RUnlock()
+	return found
+}
+
+func (c *commitFileHistory) getFilename(commit string, filename string) string {
+	fn := strings.Replace(strings.Replace(filename, fmt.Sprintf("%c", filepath.Separator), "_", -1), ".", "_", -1)
+	return fmt.Sprintf("%s_%s.json.gz", commit, fn)
+}
+
+// exists returns true if the file for a given commit already exists
+func (c *commitFileHistory) exists(commit string, filename string) bool {
+	fn := filepath.Join(c.gitcachedir, c.getFilename(commit, filename))
+	if _, err := os.Stat(fn); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+// save the file for a specific commit
+func (c *commitFileHistory) save(filename string, commit string, file *patch.File) error {
+	fn := filepath.Join(c.gitcachedir, c.getFilename(commit, filename))
+	o, err := os.Create(fn)
+	if err != nil {
+		return fmt.Errorf("error creating cached file at %v. %v", fn, err)
+	}
+	gz := gzip.NewWriter(o)
+	enc := json.NewEncoder(gz)
+	enc.Encode(file)
+	gz.Flush()
+	gz.Close()
+	o.Close()
+	return nil
+}
+
+func (c *commitFileHistory) Get(filename string, commit string) (*patch.File, error) {
+	fn := filepath.Join(c.gitcachedir, c.getFilename(commit, filename))
+	if _, err := os.Stat(fn); os.IsNotExist(err) {
+		f := patch.NewFile(filename)
+		return f, nil
+	}
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, fmt.Errorf("error getting cached file at %v. %v", fn, err)
+	}
+	r, err := gzip.NewReader(f)
+	if err != nil {
+		f.Close()
+		return nil, fmt.Errorf("error reading cached file at %v. %v", fn, err)
+	}
+	var pf patch.File
+	if err := json.NewDecoder(r).Decode(&pf); err != nil {
+		r.Close()
+		f.Close()
+		return nil, fmt.Errorf("error decoding cached file at %v. %v", fn, err)
+	}
+	r.Close()
+	f.Close()
+	return &pf, nil
+}
+
+func (c *commitFileHistory) Add(filename string, diff *diff) {
+	c.mu.Lock()
+	c.diffs[filename] = diff
+	c.mu.Unlock()
+}
+
+func (c *commitFileHistory) wait() error {
+	c.wg.Wait()
+	// now we need to process them all
+	processed := make(map[string]bool)
+	var err error
+	for filename, diff := range c.diffs {
+		processed, err = c.process(filename, diff, processed)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *commitFileHistory) process(filename string, diff *diff, processed map[string]bool) (map[string]bool, error) {
+	var err error
+	for i, history := range diff.history {
+		if c.exists(history.SHA, filename) {
+			continue // commits are idompotent so if we've already processed it, just use it again
+		}
+		var file *patch.File
+		// fmt.Println("$$$", filename, i, history.SHA, "copy="+history.CopyFrom, "rename="+history.RenameFrom, "deleted=", history.Deleted)
+		if history.CopyFrom != "" {
+			// copy from, so we need to process
+			if !processed[history.CopyFrom] {
+				// not processed, we need to preprocess
+				for fn, d := range c.diffs {
+					if fn == history.CopyFrom {
+						processed, err = c.process(fn, d, processed)
+						if err != nil {
+							return nil, err
+						}
+						processed[fn] = true
+					}
+				}
+			}
+			// get the copied file buffer
+			previousSHA := c.GetPreviousCommitSHA(history.CopyFrom, history.SHA)
+			if previousSHA == "" {
+				panic("couldn't find previous sha for " + history.CopyFrom + " from commit " + history.SHA)
+			}
+			existingFile, err := c.Get(history.CopyFrom, previousSHA)
+			if err != nil {
+				return nil, err
+			}
+			file = patch.NewFile(filename)
+			if err := file.Parse(existingFile.String(), history.SHA); err != nil {
+				return nil, fmt.Errorf("error processing copied file %v => %s for commit %v. %v", history.CopyFrom, filename, history.SHA, err)
+			}
+			// fmt.Println(file.Stringify(true))
+			// panic(history.Patch.String())
+		} else if history.RenameFrom != "" {
+			// copy from, so we need to process
+			if !processed[history.RenameFrom] {
+				// not processed, we need to preprocess
+				for fn, d := range c.diffs {
+					if fn == history.RenameFrom {
+						processed, err = c.process(fn, d, processed)
+						if err != nil {
+							return nil, err
+						}
+						processed[fn] = true
+					}
+				}
+			}
+			// get the copied file buffer
+			previousSHA := c.GetPreviousCommitSHA(history.RenameFrom, history.SHA)
+			if previousSHA == "" {
+				panic("couldn't find previous sha for " + history.RenameFrom + " from commit " + history.SHA)
+			}
+			existingFile, err := c.Get(history.RenameFrom, previousSHA)
+			if err != nil {
+				return nil, err
+			}
+			file = patch.NewFile(history.RenameFrom)
+			if err := file.Parse(existingFile.String(), history.SHA); err != nil {
+				return nil, fmt.Errorf("error processing renamed file %v => %s for commit %v. %v", history.RenameFrom, filename, history.SHA, err)
+			}
+		}
+		if file == nil {
+			if i > 0 {
+				previousha := diff.history[i-1].SHA
+				file, err = c.Get(filename, previousha)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				file = patch.NewFile(filename)
+			}
+		}
+		if !history.Deleted {
+			// fmt.Println("#############", filename, history.SHA, "BEFORE >>"+file.Stringify(true)+"<<")
+			// fmt.Println("PATCH", filename, ">>", history.Patch.String()+"<<")
+			newfile := history.Patch.Apply(file, history.SHA)
+			// fmt.Println(file, history.SHA, "AFTER >>"+newfile.Stringify(true)+"<<")
+			// c.files[filename+history.SHA] = newfile
+			if err := c.save(filename, history.SHA, newfile); err != nil {
+				return nil, err
+			}
+		}
+	}
+	processed[filename] = true
+	return processed, nil
+}
+
+func newCommitFileHistory(gitcachedir string) *commitFileHistory {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	return &commitFileHistory{
+		wg:          &wg,
+		diffs:       make(map[string]*diff),
+		gitcachedir: gitcachedir,
+	}
+}
+
+type fileprocessor struct {
+	ctx            context.Context
+	dir            string
+	files          chan *CommitFile
+	wg             sync.WaitGroup
+	errors         chan<- error
+	history        *commitFileHistory
+	blameProcessor *BlameProcessor
+}
+
+func (p *fileprocessor) wait() {
+	p.wg.Wait()
+}
+
+func (p *fileprocessor) close() {
+	close(p.files)
+	p.wg.Wait()
+}
+
+func (p *fileprocessor) process(filename string) error {
+	args := []string{
+		"-c", "diff.renameLimit=999999",
+		"log",
+		"-p",
+		"--reverse",
+		"--no-abbrev-commit",
+		"--pretty=format:!SHA: %H",
+		"-m",
+		"--first-parent",
+		"--",
+		filename,
+	}
+	c := exec.CommandContext(p.ctx, gitCommand, args...)
+	var stdout bytes.Buffer
+	c.Dir = p.dir
+	c.Stderr = os.Stderr
+	c.Stdout = &stdout
+	if err := c.Run(); err != nil {
+		return fmt.Errorf("error fetching file details for %v. %v", filename, err)
+	}
+	dp := newDiffParser(filename)
+	s := bufio.NewScanner(&stdout)
+	for s.Scan() {
+		// fmt.Println("******* ", s.Text())
+		ok, err := dp.parse(s.Text())
+		if err != nil {
+			return fmt.Errorf("error scanning for file details for %v. %v", filename, err)
+		}
+		if !ok {
+			break
+		}
+	}
+	if err := dp.complete(); err != nil {
+		return fmt.Errorf("error parsing diff details for %v. %v", filename, err)
+	}
+	p.history.Add(filename, dp)
+	return nil
+}
+
+func (p *fileprocessor) run() {
+	processed := make(map[string]bool)
+	var mu sync.Mutex
+	for i := 0; i < runtime.NumCPU(); i++ {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			for cf := range p.files {
+				filename := cf.Filename
+				var needToProcess bool
+				mu.Lock()
+				if !processed[filename] {
+					processed[filename] = true
+					needToProcess = true
+				}
+				mu.Unlock()
+				if needToProcess {
+					if cf.Binary {
+						// don't need to process binary files
+						continue
+					}
+					if ok, _ := p.blameProcessor.shouldProcess(filename); !ok {
+						// quick path to skip obvious files we'll skip later
+						continue
+					}
+					if err := p.process(filename); err != nil {
+						p.errors <- err
+						return
+					}
+				}
+			}
+		}()
+	}
+}
 
 type parserState int
 
@@ -210,21 +488,14 @@ const (
 )
 
 type parser struct {
-	commits     chan<- Commit
-	commit      *Commit
-	dir         string
-	limit       int
-	total       int
-	currentDiff *diff
-	ordinal     int64
-	state       parserState
-}
-
-func (p *parser) complete() error {
-	if p.currentDiff != nil {
-		return p.currentDiff.complete()
-	}
-	return nil
+	commits  chan<- Commit
+	filejobs chan<- *CommitFile
+	commit   *Commit
+	dir      string
+	limit    int
+	total    int
+	ordinal  int64
+	state    parserState
 }
 
 func (p *parser) parse(line string) (bool, error) {
@@ -233,6 +504,14 @@ func (p *parser) parse(line string) (bool, error) {
 	}
 	if Debug {
 		fmt.Println(line)
+	}
+	if RipDebug {
+		defer func(line string) {
+			if p.commit != nil {
+				p.commit.debug.WriteString(line)
+				p.commit.debug.WriteString("\n")
+			}
+		}(line)
 	}
 	buf := []byte(line)
 	for {
@@ -246,30 +525,25 @@ func (p *parser) parse(line string) (bool, error) {
 					// trim off stuff after the sha since we can get tag info there
 					sha = sha[0:i]
 				}
-				if p.currentDiff != nil {
-					if err := p.currentDiff.complete(); err != nil {
-						return false, err
-					}
+				var parent *string
+				if p.commit != nil {
+					parent = &p.commit.SHA
 				}
-				var parent *Commit
 				// send the old commit and create a new one
 				if p.commit != nil && p.commit.SHA != "" { // because we send when we detect the next commit
 					p.commits <- *p.commit
-					parent = p.commit
 					p.commit = nil
 				}
-				if p.limit > 0 && p.total >= p.limit {
+				if p.limit > 0 && p.total == p.limit {
 					p.commit = nil
 					return false, nil
 				}
-				p.currentDiff = newDiffParser()
 				p.commit = &Commit{
 					Dir:     p.dir,
 					SHA:     string(sha),
 					Files:   make(map[string]*CommitFile, 0),
 					Ordinal: p.ordinal,
-					diff:    p.currentDiff,
-					parent:  parent,
+					Parent:  parent,
 				}
 				p.ordinal++
 				p.total++
@@ -312,11 +586,6 @@ func (p *parser) parse(line string) (bool, error) {
 				}
 				return true, nil
 			}
-			if bytes.HasPrefix(buf, parentPrefix) {
-				parent := string(buf[len(parentPrefix):])
-				p.commit.Parent = &parent
-				return true, nil
-			}
 			if bytes.HasPrefix(buf, messagePrefix) {
 				p.commit.Message = string(buf[len(messagePrefix):])
 				p.state = parserStateFiles
@@ -338,10 +607,12 @@ func (p *parser) parse(line string) (bool, error) {
 				paths := tok2[1:]
 				if len(action) == 1 {
 					fn := string(bytes.TrimLeft(paths[0], " "))
-					p.commit.Files[fn] = &CommitFile{
+					cf := &CommitFile{
 						Filename: fn,
 						Status:   toCommitStatus(action),
 					}
+					p.commit.Files[fn] = cf
+					p.filejobs <- cf
 				} else if bytes.HasPrefix(action, removePrefix) {
 					// rename
 					fromFn := string(bytes.TrimLeft(paths[0], " "))
@@ -354,29 +625,35 @@ func (p *parser) parse(line string) (bool, error) {
 						RenamedFrom: fromFn,
 						RenamedTo:   toFn,
 					}
-					p.commit.Files[toFn] = &CommitFile{
+					cf := &CommitFile{
 						Status:      GitFileCommitStatusAdded,
 						Filename:    toFn,
 						Renamed:     true,
 						RenamedFrom: fromFn,
 						RenamedTo:   toFn,
 					}
+					p.commit.Files[toFn] = cf
+					p.filejobs <- cf
 				} else if bytes.HasPrefix(action, copyPrefix) {
 					// copy a file into a new file ... it's basically a new file
 					fromFn := string(bytes.TrimLeft(paths[0], " "))
 					toFn := string(bytes.TrimLeft(paths[1], " "))
-					p.commit.Files[toFn] = &CommitFile{
+					cf := &CommitFile{
 						Status:     GitFileCommitStatusAdded,
 						Filename:   toFn,
 						Copied:     true,
 						CopiedFrom: fromFn,
 					}
+					p.commit.Files[toFn] = cf
+					p.filejobs <- cf
 				} else {
 					fn := string(bytes.TrimLeft(paths[0], " "))
-					p.commit.Files[fn] = &CommitFile{
+					cf := &CommitFile{
 						Status:   toCommitStatus(action),
 						Filename: fn,
 					}
+					p.commit.Files[fn] = cf
+					p.filejobs <- cf
 				}
 				return true, nil
 			}
@@ -411,15 +688,6 @@ func (p *parser) parse(line string) (bool, error) {
 				p.state = parserStateHeader
 				continue
 			}
-			ok, err := p.currentDiff.parse(line)
-			// fmt.Println("doing diff", ok, "=>", line)
-			if !ok {
-				if err != nil {
-					return false, err
-				}
-				p.state = parserStateHeader
-				continue
-			}
 		}
 		break
 	}
@@ -427,61 +695,96 @@ func (p *parser) parse(line string) (bool, error) {
 }
 
 // streamCommits will stream all the commits to the returned channel and block until completed
-func streamCommits(ctx context.Context, dir string, sha string, limit int, commits chan<- Commit, errors chan<- error) error {
-	gitdir := filepath.Join(dir, ".git")
-	if _, err := os.Stat(gitdir); os.IsNotExist(err) {
-		return nil
+func streamCommits(ctx context.Context, dir string, cachedir string, sha string, limit int, blameProcessor *BlameProcessor, history *commitFileHistory, commits chan<- Commit, errors chan<- error) error {
+	cachefn := filepath.Join(cachedir, "gitlog.txt")
+	cacheshafn := filepath.Join(cachedir, "gitlog_sha.txt")
+	var of io.ReadCloser
+	if sha == "" {
+		if _, err := os.Stat(cachefn); err == nil {
+			if _, err := os.Stat(cacheshafn); err == nil {
+				buf, _ := ioutil.ReadFile(cacheshafn)
+				if buf != nil && len(buf) > 0 {
+					var out strings.Builder
+					c := exec.CommandContext(ctx, gitCommand, "rev-parse", "HEAD")
+					c.Stdout = &out
+					c.Run()
+					if out.Len() > 0 && string(buf) == strings.TrimSpace(out.String()) {
+						of, _ = os.Open(cachefn)
+					}
+				}
+			}
+		}
 	}
-	args := []string{
-		"-c", "diff.renameLimit=999999",
-		"--no-pager",
-		"log",
-		"--raw",
-		"--reverse",
-		"--numstat",
-		"--pretty=format:!SHA: %H%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Parent: %P%n!Message: %s%n",
-		"--no-merges",
-		"--full-diff",
-		"-p",
-		"-m",
-		"-U3",
-		"-M",
-		"-C",
-		"--topo-order",
-	}
-	// if provided, we need to start streaming after this commit forward
-	if sha != "" {
-		args = append(args, sha+"...")
-	}
-	if Debug {
-		fmt.Println(dir, gitCommand, strings.Join(args, " "))
-	}
-	// stream to a temp file and then re-read it in ... seems to be way more stable
-	tmpfn := filepath.Join(os.TempDir(), fmt.Sprintf("ripsrc-%v-%d.txt", time.Now().UnixNano(), rand.Int()))
-	fn, err := os.Create(tmpfn)
-	if err != nil {
-		return fmt.Errorf("error creating temp file: %v", err)
-	}
-	defer os.Remove(fn.Name())
-	gitlog := exec.CommandContext(ctx, gitCommand, args...)
-	gitlog.Dir = dir
-	gitlog.Stdout = fn
-	gitlog.Stderr = os.Stderr
-	if err := gitlog.Run(); err != nil {
-		return fmt.Errorf("error streaming commits from %v. %v", dir, err)
-	}
-	fn.Close()
-	of, err := os.Open(tmpfn)
-	if err != nil {
-		return fmt.Errorf("error opening temp file output: %v", err)
+	if of == nil {
+		args := []string{
+			"-c", "diff.renameLimit=999999",
+			"--no-pager",
+			"log",
+			"--raw",
+			"--reverse",
+			"--numstat",
+			"--pretty=format:!SHA: %H%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
+			"--no-merges",
+			"--topo-order",
+		}
+		// if provided, we need to start streaming after this commit forward
+		if sha != "" {
+			args = append(args, sha+"...")
+		}
+		if Debug {
+			fmt.Println(dir, gitCommand, strings.Join(args, " "))
+		}
+		// stream to a temp file and then re-read it in ... seems to be way more stable
+		f, err := os.Create(cachefn)
+		if err != nil {
+			return fmt.Errorf("error creating temp file: %v", err)
+		}
+		gitlog := exec.CommandContext(ctx, gitCommand, args...)
+		gitlog.Dir = dir
+		gitlog.Stdout = f
+		gitlog.Stderr = os.Stderr
+		if err := gitlog.Run(); err != nil {
+			return fmt.Errorf("error streaming commits from %v. %v", dir, err)
+		}
+		f.Close() // close and re-open
+		of, err = os.Open(cachefn)
+		if err != nil {
+			return fmt.Errorf("error opening temp file %v for output: %v", cachefn, err)
+		}
 	}
 	defer of.Close()
+
+	filejobs := make(chan *CommitFile, 1000)
+	localerrors := make(chan error, 1)
+	finalerror := make(chan error, 1)
+
 	var parser parser
 	parser.dir = dir
 	parser.limit = limit
 	parser.commits = commits
 	parser.ordinal = time.Now().Unix()
+	parser.filejobs = filejobs
+	var processor fileprocessor
+	processor.files = filejobs
+	processor.dir = dir
+	processor.ctx = ctx
+	processor.errors = localerrors
+	processor.history = history
+	processor.blameProcessor = blameProcessor
+	processor.run()
 	scanner := bufio.NewScanner(of)
+
+	defer history.wg.Done()
+
+	go func() {
+		for err := range localerrors {
+			processor.close()
+			of.Close()
+			finalerror <- err
+			break
+		}
+	}()
+
 	for scanner.Scan() {
 		ok, err := parser.parse(scanner.Text())
 		if err != nil {
@@ -491,11 +794,18 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 			break
 		}
 	}
-	if err := parser.complete(); err != nil {
-		return err
-	}
 	if parser.commit != nil && parser.commit.SHA != "" { // because we send when we detect the next commit
 		commits <- *parser.commit
+	}
+	processor.close()
+	select {
+	case err := <-finalerror:
+		return err
+	default:
+		break
+	}
+	if parser.commit != nil && parser.commit.SHA != "" {
+		ioutil.WriteFile(cacheshafn, []byte(parser.commit.SHA), 0644)
 	}
 	return nil
 }

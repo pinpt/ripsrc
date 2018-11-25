@@ -7,6 +7,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestLicenseMatcher(t *testing.T) {
+	assert := assert.New(t)
+	assert.True(possibleLicense("/LICENSE.txt"))
+	assert.True(possibleLicense("LICENSE.txt"))
+	assert.True(possibleLicense("/cmd/foo/LICENSE"))
+	assert.True(possibleLicense("LICENCE"))
+	assert.True(possibleLicense("LICENCE.md"))
+	assert.True(possibleLicense("LICENCE.txt"))
+	assert.True(possibleLicense("LICENSE"))
+	assert.True(possibleLicense("README"))
+	assert.True(possibleLicense("README.md"))
+	assert.True(possibleLicense("README.txt"))
+	assert.True(possibleLicense("/cmd/README.txt"))
+	assert.True(possibleLicense("UNLICENSE"))
+	assert.True(possibleLicense("COPYING"))
+	assert.True(possibleLicense("LICENSE-MIT"))
+	assert.True(possibleLicense("LICENSE-MIT.md"))
+	assert.True(possibleLicense("cmd/foo/LICENSE-MIT.txt"))
+	assert.False(possibleLicense("main.go"))
+}
+
 func TestLicenseDetection(t *testing.T) {
 	assert := assert.New(t)
 	lic, err := detect("LICENSE", []byte(`Copyright 2018 Pinpoint

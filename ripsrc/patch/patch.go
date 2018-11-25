@@ -1,13 +1,11 @@
 package patch
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type operationType int
@@ -54,14 +52,14 @@ type hunk struct {
 // Line is a specific line in a file
 type Line struct {
 	Buffer string
-	Commit Commit
+	Commit string
 }
 
 // File is an abstraction over a set of lines in a file
 type File struct {
 	Name  string
 	Lines []*Line
-	noeol bool
+	NoEOL bool
 }
 
 func (f *File) String() string {
@@ -89,46 +87,39 @@ func (f *File) Stringify(linenums bool) string {
 	}
 	out := strings.Join(lines, "\n")
 	l := len(out)
-	if f.noeol && l > 0 && out[l-1:] == "\n" {
+	if f.NoEOL && l > 0 && out[l-1:] == "\n" {
 		out = out[0 : l-1]
 	}
 	return out
 }
 
-// Commit interface
-type Commit interface {
-	CommitSHA() string
-	Author() string
-	CommitDate() time.Time
-	IsBinary(filename string) bool
-}
-
-func padRight(str string, length int, pad byte) string {
-	l := len(str)
-	if l >= length {
-		max := length - 1
-		return str[0:max] + fmt.Sprintf("%c", pad)
-	}
-	buf := bytes.NewBufferString(str)
-	for i := 0; i < length-len(str); i++ {
-		buf.WriteByte(pad)
-	}
-	return buf.String()
-}
+// func padRight(str string, length int, pad byte) string {
+// 	l := len(str)
+// 	if l >= length {
+// 		max := length - 1
+// 		return str[0:max] + fmt.Sprintf("%c", pad)
+// 	}
+// 	buf := bytes.NewBufferString(str)
+// 	for i := 0; i < length-len(str); i++ {
+// 		buf.WriteByte(pad)
+// 	}
+// 	return buf.String()
+// }
 
 // Blame will print a blame style output
 func (f *File) Blame() string {
 	lines := make([]string, 0)
 	if f.Lines != nil {
 		for i, line := range f.Lines {
-			sha := line.Commit.CommitSHA()
-			ts := line.Commit.CommitDate()
-			author := line.Commit.Author()
-			lines = append(lines, fmt.Sprintf("%s (%s %s %d) %s", sha[0:6], padRight(author, 15, ' '), ts.UTC().Format(time.RFC822Z), 1+i, line.Buffer))
+			sha := line.Commit
+			// ts := line.Commit.CommitDate()
+			// author := line.Commit.Author()
+			// lines = append(lines, fmt.Sprintf("%s (%s %s %d) %s", sha[0:6], padRight(author, 15, ' '), ts.UTC().Format(time.RFC822Z), 1+i, line.Buffer))
+			lines = append(lines, fmt.Sprintf("%s (%d) %s", sha[0:6], 1+i, line.Buffer))
 		}
 	}
 	out := strings.Join(lines, "\n")
-	if f.noeol && out[len(out)-1:] == "\n" {
+	if f.NoEOL && out[len(out)-1:] == "\n" {
 		out = out[0 : len(out)-1]
 	}
 	return out
@@ -140,7 +131,7 @@ func NewFile(name string) *File {
 }
 
 // Parse will parse the buffer into a set of lines inside the file
-func (f *File) Parse(buf string, commit Commit) error {
+func (f *File) Parse(buf string, commit string) error {
 	lines := strings.Split(buf, "\n")
 	for _, line := range lines {
 		f.Lines = append(f.Lines, &Line{line, commit})
@@ -151,6 +142,7 @@ func (f *File) Parse(buf string, commit Commit) error {
 // Patch describes a set of changes
 type Patch struct {
 	Filename string
+	Commit   string
 	hunks    []*hunk
 }
 
@@ -178,19 +170,17 @@ func (p *Patch) String() string {
 }
 
 // Apply will apply a patch to an existing file for a new commit and return the new File with merged patch
-func (p *Patch) Apply(file *File, commit Commit) *File {
+func (p *Patch) Apply(file *File, commit string) *File {
 	newfile := NewFile(p.Filename)
 	if file == nil {
 		newfile.Lines = make([]*Line, 0)
 	} else {
+		newfile.NoEOL = file.NoEOL
 		newfile.Lines = make([]*Line, len(file.Lines))
 		// make a new object so as not to mutate the original
 		for i, l := range file.Lines {
 			newfile.Lines[i] = &Line{l.Buffer, l.Commit}
 		}
-	}
-	if commit.IsBinary(p.Filename) { //fast path
-		return newfile
 	}
 	for _, hunk := range p.hunks {
 		for _, o := range hunk.operations {
@@ -213,12 +203,12 @@ func (p *Patch) Apply(file *File, commit Commit) *File {
 				}
 			case operationDel:
 				if offset+1 > len(newfile.Lines) {
-					fmt.Println("commit", commit.CommitSHA(), p.Filename, hunk.context, offset)
+					fmt.Println("commit", commit, p.Filename, hunk.context, offset)
 					fmt.Println(p.Filename, o)
 					fmt.Println(file)
 					fmt.Println("--> current lines=>", newfile.Stringify(true))
 					fmt.Println(hunk.context)
-					panic(fmt.Sprintf("invalid patch for commit %s and file %s. need to delete line %d but only has %d lines", commit.CommitSHA(), p.Filename, offset, len(newfile.Lines)))
+					panic(fmt.Sprintf("invalid patch for commit %s and file %s. need to delete line %d but only has %d lines", commit, p.Filename, offset, len(newfile.Lines)))
 				}
 				if Debug {
 					fmt.Println("removing line at", offset, ">>>", newfile.Lines[offset], "len", len(newfile.Lines))
@@ -228,7 +218,7 @@ func (p *Patch) Apply(file *File, commit Commit) *File {
 			offset++
 		}
 		if hunk.noeol {
-			newfile.noeol = true
+			newfile.NoEOL = true
 		}
 	}
 	return newfile
@@ -296,8 +286,8 @@ func (p *Patch) Parse(buf string) error {
 }
 
 // New returns a new empty Patch
-func New(filename string) *Patch {
-	return &Patch{Filename: filename}
+func New(filename string, commit string) *Patch {
+	return &Patch{Filename: filename, Commit: commit}
 }
 
 var contextRE = regexp.MustCompile("^@@ [-](\\d+),?(\\d+)?\\s[+](\\d+),?(\\d+)? @@")

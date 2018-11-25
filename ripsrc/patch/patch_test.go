@@ -33,7 +33,7 @@ func TestParse(t *testing.T) {
 		{"@@ -3,7 +3,7 @@\n a\n b\n c\n-d\n+e\n f\n g\n-h\n+h\n\\ No newline at end of file\n", "x\nx\na\nb\nc\nd\nf\ng\nh", "x\nx\na\nb\nc\ne\nf\ng\nh", 5},
 		{"@@ -3,2 +3,4 @@\n 3\n 4\n-5\n+a\n+b\n 6\n@@ -8,2 +8,3 @@\n 8\n+c\n", "1\n2\n3\n4\n5\n6\n7\n8\n9\n", "1\n2\n3\n4\na\nb\n6\n7\n8\nc\n9\n", 4},
 	} {
-		p := New("test")
+		p := New("test", "oldcommit")
 		assert.NoError(p.Parse(test.patch))
 		assert.Equal(test.patch, p.String())
 		f := NewFile("test")
@@ -41,29 +41,25 @@ func TestParse(t *testing.T) {
 		nf := p.Apply(f, "newcommit")
 		assert.Equal(test.expected, nf.String())
 		if test.checkline != -1 {
-			val, ok := nf.Lines[test.checkline].Commit.(string)
-			assert.True(ok)
-			assert.Equal("newcommit", val)
+			assert.Equal("newcommit", nf.Lines[test.checkline].Commit)
 		} else if len(nf.Lines) > 0 {
-			val, ok := nf.Lines[0].Commit.(string)
-			assert.True(ok)
-			assert.Equal("oldcommit", val)
+			assert.Equal("oldcommit", nf.Lines[0].Commit)
 		}
 	}
 }
 
 func TestParseRules(t *testing.T) {
 	assert := assert.New(t)
-	p := New("a.diff")
+	p := New("a.diff", "oldcommit")
 	patchfile, err := ioutil.ReadFile("testdata/a.diff")
 	assert.NoError(err)
 	assert.NoError(p.Parse(string(patchfile)))
 	f := NewFile("a-in.txt")
 	afile, err := ioutil.ReadFile("testdata/a-in.txt")
 	assert.NoError(err)
-	assert.NoError(f.Parse(string(afile), nil))
+	assert.NoError(f.Parse(string(afile), "commit"))
 	// fmt.Println(f.Stringify(true))
-	nf := p.Apply(f, nil)
+	nf := p.Apply(f, "newcommit")
 	bfile, err := ioutil.ReadFile("testdata/a-out.txt")
 	assert.NoError(err)
 	assert.Equal(string(bfile), nf.String())

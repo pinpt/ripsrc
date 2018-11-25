@@ -1,46 +1,16 @@
 package ripsrc
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/pinpt/ripsrc/ripsrc/patch"
-	"github.com/sergi/go-diff/diffmatchpatch"
-
-	"github.com/karrick/godirwalk"
 )
-
-// find either export gitdata or .git - that way it works for both dev and prod
-func findGitDir(dir string) ([]string, error) {
-	dupe := make(map[string]bool)
-	fileList := []string{}
-	err := godirwalk.Walk(dir, &godirwalk.Options{
-		Callback: func(osPathname string, de *godirwalk.Dirent) error {
-			if de.IsDir() {
-				basedir := de.Name()
-				if basedir == "gitdata" && !dupe[osPathname] {
-					fileList = append(fileList, osPathname)
-					dupe[osPathname] = true
-				} else if basedir == ".git" {
-					fp := filepath.Dir(osPathname)
-					if !dupe[fp] {
-						dupe[fp] = true
-						fileList = append(fileList, fp)
-					}
-				}
-			}
-			return nil
-		},
-	})
-	return fileList, err
-}
 
 // Filter provides a blacklist (exclude) and/or whitelist (include) filter
 type Filter struct {
@@ -62,137 +32,63 @@ func formatBuf(line string) string {
 }
 
 type commitjob struct {
-	commit Commit
-	file   patch.File
+	filename string
+	commit   Commit
+	file     *patch.File
 }
 
 // Rip will rip through the directory provided looking for git directories
 // and will stream blame details for each commit back to results
 // the results channel will automatically be called once all the commits are
 // streamed. this function will block until all results are streamed
-func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *Filter, validate bool) error {
+func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *Filter) error {
 	dir, _ := filepath.Abs(fdir)
-	gitdirs, err := findGitDir(dir)
-	if err != nil {
-		return fmt.Errorf("error finding git dir from %v. %v", dir, err)
+	gitdir := filepath.Join(dir, ".git")
+	if _, err := os.Stat(gitdir); os.IsNotExist(err) {
+		return fmt.Errorf("error finding git dir from %v", dir)
 	}
-	errors := make(chan error, 100)
-	var size int
-	if !validate {
-		size = 1000
+	errors := make(chan error, 1)
+	size := 10000000 // FIXME once we fix the history.wait below make this reasonable
+	var debugdir string
+	if RipDebug {
+		cwd, _ := os.Getwd()
+		debugdir = filepath.Join(cwd, "ripsrc-debug")
+		os.RemoveAll(debugdir)
 	}
+	cachedir := filepath.Join(gitdir, ".ripcache")
+	if _, err := os.Stat(cachedir); os.IsNotExist(err) {
+		os.MkdirAll(cachedir, 0755)
+	}
+	history := newCommitFileHistory(cachedir)
 	processor := NewBlameProcessor(filter)
 	commits := make(chan Commit, size)
-	commitjobs := make(chan commitjob, size)
+	commitjobs := make(chan commitjob, 1000)
 	var wg sync.WaitGroup
+	var total int
 	wg.Add(1)
 	// start the goroutine for processing before we start processing
 	go func() {
 		defer wg.Done()
-		files := make(map[string]*patch.File)
+		// TODO: wait to block below when the file is needed instead of up front
+		if err := history.wait(); err != nil {
+			errors <- err
+			close(commitjobs)
+			return
+		}
 		for commit := range commits {
-			// check for copies in this commit.  when we have a git copy, git will annotate
-			// that one file was copied from another and then any changes to the file post copy
-			// as part of the commit will reference the previous file (that was copied). in this
-			// case we need to use the copy prior to any changes since if the file that was copied
-			// has changes, it will also be in the files list.  so we make a map of the changes
-			// *prior* to the commit so that we can reference it below
-			var copies map[string]*patch.File
-			for _, file := range commit.diff.files {
-				fe := commit.Files[file.Filename]
-				if fe.Copied {
-					if copies == nil {
-						copies = make(map[string]*patch.File)
-					}
-					found := files[fe.CopiedFrom]
-					copies[fe.Filename] = found
+			for filename := range commit.Files {
+				file, err := history.Get(filename, commit.SHA)
+				if err != nil {
+					errors <- err
+					close(commitjobs)
+					return
 				}
+				if file == nil {
+					file = patch.NewFile(filename)
+				}
+				commitjobs <- commitjob{filename, commit, file}
 			}
-			for _, file := range commit.diff.files {
-				fe := commit.Files[file.Filename]
-				if RipDebug {
-					switch fe.Status {
-					case GitFileCommitStatusAdded:
-						if fe.Renamed {
-							fmt.Println(commit.SHA, file.Filename, fe.Status, "renamed", fe.RenamedFrom, "=>", fe.RenamedTo)
-						} else if fe.Copied {
-							fmt.Println(commit.SHA, file.Filename, fe.Status, "copied from =>", fe.CopiedFrom)
-						} else {
-							fmt.Println(commit.SHA, file.Filename, fe.Status)
-						}
-					case GitFileCommitStatusModified:
-						fmt.Println(commit.SHA, file.Filename, fe.Status)
-					case GitFileCommitStatusRemoved:
-						if fe.Renamed {
-							fmt.Println(commit.SHA, file.Filename, fe.Status, "renamed", fe.RenamedFrom, "=>", fe.RenamedTo)
-						} else {
-							fmt.Println(commit.SHA, file.Filename, fe.Status)
-						}
-					}
-				}
-				current := files[file.Filename]
-				if fe.Renamed {
-					current = files[fe.RenamedFrom]
-				} else if fe.Copied {
-					current = copies[file.Filename]
-				}
-				newfile := file.Apply(current, commit)
-				if validate && fe.Status == GitFileCommitStatusModified {
-					newbuf := newfile.String()
-					var oldbufb bytes.Buffer
-					c := exec.Command("git", "show", commit.SHA+":"+file.Filename)
-					c.Stdout = &oldbufb
-					c.Stderr = os.Stderr
-					c.Dir = dir
-					c.Run()
-					newbuf = strings.TrimSpace(newbuf)
-					oldbuf := strings.TrimSpace(oldbufb.String())
-					if newbuf != oldbuf {
-						fmt.Println("invalid commit diff", commit.SHA, file.Filename)
-						for _, df := range commit.diff.files {
-							if df.Filename == file.Filename {
-								fmt.Println("diff which was applied:" + df.String())
-								break
-							}
-						}
-						fmt.Println(strings.Repeat("-", 120))
-						if current != nil {
-							fmt.Println("applied to >>" + current.Stringify(true) + "<<")
-						} else {
-							fmt.Println("applied to >><<")
-						}
-						fmt.Println(strings.Repeat("-", 120))
-						dmp := diffmatchpatch.New()
-						diffs := dmp.DiffMain(oldbuf, newbuf, true)
-						fmt.Println("DIFFERENCE:")
-						fmt.Println(dmp.DiffPrettyText(diffs))
-						fmt.Println(strings.Repeat("-", 120))
-						fmt.Println("EXPECTED >>" + oldbuf + "<<")
-						fmt.Println(strings.Repeat("-", 120))
-						fmt.Println("WAS >>" + newbuf + "<<")
-						fmt.Println("PREVIOUS COMMITS FOR FILE:")
-						fmt.Println(strings.Repeat("-", 120))
-						p := commit.parent
-						for p != nil {
-							tf := p.Files[file.Filename]
-							if tf != nil {
-								fmt.Println(p.CommitSHA(), p.Date, p.Author(), p.Message)
-								for _, diff := range p.diff.files {
-									if diff.Filename == file.Filename {
-										fmt.Println(diff)
-										fmt.Println(strings.Repeat("-", 120))
-										break
-									}
-								}
-							}
-							p = p.parent
-						}
-						os.Exit(1)
-					}
-				}
-				files[file.Filename] = newfile
-				commitjobs <- commitjob{commit, *newfile}
-			}
+			total++
 		}
 		close(commitjobs)
 	}()
@@ -200,6 +96,9 @@ func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *F
 	go func() {
 		defer wg.Done()
 		for job := range commitjobs {
+			if job.commit.Merge {
+				continue
+			}
 			result, err := processor.process(job)
 			if err != nil {
 				errors <- err
@@ -210,19 +109,16 @@ func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *F
 			}
 		}
 	}()
-	// setup a goroutine to start processing commits
-	for _, gitdir := range gitdirs {
-		var sha string
-		var limit int
-		if filter != nil && filter.SHA != "" {
-			sha = filter.SHA
-		}
-		if filter != nil && filter.Limit > 0 {
-			limit = filter.Limit
-		}
-		if err := streamCommits(ctx, gitdir, sha, limit, commits, errors); err != nil {
-			return fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
-		}
+	var sha string
+	var limit int
+	if filter != nil && filter.SHA != "" {
+		sha = filter.SHA
+	}
+	if filter != nil && filter.Limit > 0 {
+		limit = filter.Limit
+	}
+	if err := streamCommits(ctx, gitdir, cachedir, sha, limit, processor, history, commits, errors); err != nil {
+		return fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
 	}
 	close(commits)
 	wg.Wait()

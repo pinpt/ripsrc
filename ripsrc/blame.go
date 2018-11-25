@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/boyter/scc/processor"
@@ -54,29 +55,29 @@ type exclusionDecision struct {
 // BlameProcessor handles processing blame data
 type BlameProcessor struct {
 	filter *Filter
-	total  int
 
 	// since commits will often have the same files that we process over and over
 	// we can cache the filename exclusion rules to make checking much faster
 	// since some of the rule checks are quite expensive regexps, etc.
 	hashedExclusions map[string]*exclusionDecision
+	mu               sync.Mutex
 }
 
 const (
-	blacklisted        = "file was on an exclusion list"
-	whitelisted        = "file was not on the inclusion list"
-	removedFile        = "file was removed"
-	limitExceed        = "file size was %dK which exceeds limit of %dK"
-	maxLineExceed      = "file has more than %d lines"
-	maxLineBytesExceed = "file has a line width of >=%dK which is greater than max of %dK"
-	generatedFile      = "file was a generated file"
-	vendoredFile       = "file was a vendored file"
-	configFile         = "file was a config file"
-	dotFile            = "file was a dot file"
-	pathInvalid        = "file path was invalid"
-	languageUnknown    = "language was unknown"
-	fileNotSupported   = "file type was not supported as source code"
-	fileBinary         = "file was binary"
+	blacklisted        = "File was on an exclusion list"
+	whitelisted        = "File was not on the inclusion list"
+	removedFile        = "File was removed"
+	limitExceed        = "File size was %dK which exceeds limit of %dK"
+	maxLineExceed      = "File has more than %d lines"
+	maxLineBytesExceed = "File has a line width of >=%dK which is greater than max of %dK"
+	generatedFile      = "File was a generated file"
+	vendoredFile       = "File was a vendored file"
+	configFile         = "File was a config file"
+	dotFile            = "File was a dot file"
+	pathInvalid        = "File path was invalid"
+	languageUnknown    = "Language was unknown"
+	fileNotSupported   = "File type was not supported as source code"
+	fileBinary         = "File was binary"
 )
 
 func (p *BlameProcessor) isVendored(filename string) bool {
@@ -95,9 +96,14 @@ func (p *BlameProcessor) isVendored(filename string) bool {
 
 // handle a set of black lists that we should automatically not process
 func (p *BlameProcessor) shouldProcess(filename string) (bool, string) {
+	if possibleLicense(filename) {
+		return true, ""
+	}
 	// check the cache since some of these lookups are a bit expensive and
 	// since filenames within the same repo are usually repeated with many
 	// commits and we can reuse the previous decision in subsequent commits
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	decision := p.hashedExclusions[filename]
 	if decision != nil {
 		return decision.process, decision.reason
@@ -123,10 +129,7 @@ func (p *BlameProcessor) shouldProcess(filename string) (bool, string) {
 }
 
 func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
-	if p.filter != nil && p.filter.Limit > 0 && p.total >= p.filter.Limit {
-		return true, nil, nil
-	}
-	filename := job.file.Name
+	filename := job.filename
 	cf := job.commit.Files[filename]
 	if cf == nil {
 		fmt.Println(job.commit.SHA, job.commit.Files)
@@ -166,7 +169,6 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 			Status:             cf.Status,
 		}, nil
 	}
-	p.total++
 	var custom bool
 	ok, skipped := p.shouldProcess(filename)
 	if ok {
@@ -175,7 +177,9 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 			if p.filter.Blacklist != nil {
 				if p.filter.Blacklist.MatchString(filename) {
 					skipped = blacklisted
+					p.mu.Lock()
 					p.hashedExclusions[filename] = &exclusionDecision{false, blacklisted}
+					p.mu.Unlock()
 					custom = true
 				}
 			}
@@ -183,7 +187,9 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 			if p.filter.Whitelist != nil {
 				if !p.filter.Whitelist.MatchString(filename) {
 					skipped = whitelisted
+					p.mu.Lock()
 					p.hashedExclusions[filename] = &exclusionDecision{false, whitelisted}
+					p.mu.Unlock()
 					custom = true
 				}
 			}
@@ -265,14 +271,19 @@ func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
 	if ok {
 		return res, err
 	}
-	filename := job.file.Name
-	filebuf := []byte(job.file.String())
-	filesize := len(filebuf)
+	filename := job.filename
 	result := &BlameResult{
 		Filename: filename,
 		Commit:   job.commit,
 		Status:   job.commit.Files[filename].Status,
 	}
+	if job.file == nil {
+		fmt.Println(job.commit)
+		fmt.Println(filename)
+		panic("file was nil")
+	}
+	filebuf := []byte(job.file.String())
+	filesize := len(filebuf)
 	// check for max file size exclusion
 	if filesize >= maxFileSize {
 		result.Skipped = fmt.Sprintf(limitExceed, filesize/1024, maxFileSize/1024)
