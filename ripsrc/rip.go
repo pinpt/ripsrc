@@ -76,29 +76,29 @@ func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *F
 			return
 		}
 		for commit := range commits {
-			for filename := range commit.Files {
+			for filename, cf := range commit.Files {
+				// fmt.Println("@@", commit.SHA, filename)
 				file, err := history.Get(filename, commit.SHA)
 				if err != nil {
 					errors <- err
 					close(commitjobs)
 					return
 				}
-				if file == nil {
-					file = patch.NewFile(filename)
+				// we skip commits not found since they may not be part of the history as related to merging
+				if cf.Status == GitFileCommitStatusModified && (file == nil || file.Empty()) {
+					continue
 				}
 				commitjobs <- commitjob{filename, commit, file}
 			}
 			total++
 		}
 		close(commitjobs)
+		history = nil
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for job := range commitjobs {
-			if job.commit.Merge {
-				continue
-			}
 			result, err := processor.process(job)
 			if err != nil {
 				errors <- err

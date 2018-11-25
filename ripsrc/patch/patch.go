@@ -62,6 +62,11 @@ type File struct {
 	NoEOL bool
 }
 
+// Empty returns true if the file has no content
+func (f *File) Empty() bool {
+	return len(f.Lines) == 0
+}
+
 func (f *File) String() string {
 	return f.Stringify(false)
 }

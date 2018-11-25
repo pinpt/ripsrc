@@ -70,8 +70,7 @@ type Commit struct {
 	Message        string
 	Parent         *string
 	Signed         bool
-	Merge          bool
-	Parents        []string
+	Previous       *Commit
 
 	callback Callback
 	diff     *diff
@@ -224,6 +223,7 @@ func (c *commitFileHistory) exists(commit string, filename string) bool {
 // save the file for a specific commit
 func (c *commitFileHistory) save(filename string, commit string, file *patch.File) error {
 	fn := filepath.Join(c.gitcachedir, c.getFilename(commit, filename))
+	// fmt.Println("saving file", filename, commit, "=>", fn)
 	o, err := os.Create(fn)
 	if err != nil {
 		return fmt.Errorf("error creating cached file at %v. %v", fn, err)
@@ -241,6 +241,7 @@ func (c *commitFileHistory) Get(filename string, commit string) (*patch.File, er
 	fn := filepath.Join(c.gitcachedir, c.getFilename(commit, filename))
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		f := patch.NewFile(filename)
+		// fmt.Println("!!!!!!!!!!! no file found for ", commit, "=>", filename)
 		return f, nil
 	}
 	f, err := os.Open(fn)
@@ -280,6 +281,7 @@ func (c *commitFileHistory) wait() error {
 			return err
 		}
 	}
+	c.diffs = nil
 	return nil
 }
 
@@ -364,7 +366,6 @@ func (c *commitFileHistory) process(filename string, diff *diff, processed map[s
 			// fmt.Println("PATCH", filename, ">>", history.Patch.String()+"<<")
 			newfile := history.Patch.Apply(file, history.SHA)
 			// fmt.Println(file, history.SHA, "AFTER >>"+newfile.Stringify(true)+"<<")
-			// c.files[filename+history.SHA] = newfile
 			if err := c.save(filename, history.SHA, newfile); err != nil {
 				return nil, err
 			}
@@ -404,6 +405,7 @@ func (p *fileprocessor) close() {
 }
 
 func (p *fileprocessor) process(filename string) error {
+	// fmt.Println("$$$$ processing=" + filename)
 	args := []string{
 		"-c", "diff.renameLimit=999999",
 		"log",
@@ -529,8 +531,10 @@ func (p *parser) parse(line string) (bool, error) {
 				if p.commit != nil {
 					parent = &p.commit.SHA
 				}
+				var parentCommit *Commit
 				// send the old commit and create a new one
 				if p.commit != nil && p.commit.SHA != "" { // because we send when we detect the next commit
+					parentCommit = p.commit
 					p.commits <- *p.commit
 					p.commit = nil
 				}
@@ -539,11 +543,12 @@ func (p *parser) parse(line string) (bool, error) {
 					return false, nil
 				}
 				p.commit = &Commit{
-					Dir:     p.dir,
-					SHA:     string(sha),
-					Files:   make(map[string]*CommitFile, 0),
-					Ordinal: p.ordinal,
-					Parent:  parent,
+					Dir:      p.dir,
+					SHA:      string(sha),
+					Files:    make(map[string]*CommitFile, 0),
+					Ordinal:  p.ordinal,
+					Parent:   parent,
+					Previous: parentCommit,
 				}
 				p.ordinal++
 				p.total++
@@ -754,7 +759,7 @@ func streamCommits(ctx context.Context, dir string, cachedir string, sha string,
 	}
 	defer of.Close()
 
-	filejobs := make(chan *CommitFile, 1000)
+	filejobs := make(chan *CommitFile, 100)
 	localerrors := make(chan error, 1)
 	finalerror := make(chan error, 1)
 
@@ -764,6 +769,7 @@ func streamCommits(ctx context.Context, dir string, cachedir string, sha string,
 	parser.commits = commits
 	parser.ordinal = time.Now().Unix()
 	parser.filejobs = filejobs
+
 	var processor fileprocessor
 	processor.files = filejobs
 	processor.dir = dir

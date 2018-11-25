@@ -136,6 +136,8 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 		panic("commit file was nil for " + job.file.Name)
 	}
 	if cf.Status == GitFileCommitStatusRemoved { // fast path
+		// if removed, we need to keep a record so we can detect it
+		// but we don't need blame, etc so just send it to the results channel
 		return true, &BlameResult{
 			Commit:             job.commit,
 			Language:           "",
@@ -147,7 +149,7 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 			Blanks:             0,
 			Complexity:         0,
 			WeightedComplexity: 0,
-			Skipped:            "",
+			Skipped:            removedFile,
 			License:            nil,
 			Status:             cf.Status,
 		}, nil
@@ -169,7 +171,6 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 			Status:             cf.Status,
 		}, nil
 	}
-	var custom bool
 	ok, skipped := p.shouldProcess(filename)
 	if ok {
 		if p.filter != nil {
@@ -180,7 +181,6 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 					p.mu.Lock()
 					p.hashedExclusions[filename] = &exclusionDecision{false, blacklisted}
 					p.mu.Unlock()
-					custom = true
 				}
 			}
 			// if a whitelist, exclude if not matched
@@ -190,63 +190,38 @@ func (p *BlameProcessor) preprocess(job commitjob) (bool, *BlameResult, error) {
 					p.mu.Lock()
 					p.hashedExclusions[filename] = &exclusionDecision{false, whitelisted}
 					p.mu.Unlock()
-					custom = true
 				}
 			}
 		}
 	}
 	var license *License
 	if skipped != "" {
-		// if skipped and custom (meaning via filter), we still send it back
-		// to indicate that we skipped it
-		if !custom {
-			// check if the filename looks like a possible license file
-			if possibleLicense(filename) {
-				var err error
-				buf := []byte(job.file.String())
-				if !enry.IsBinary(buf) {
-					license, err = detect(filename, buf)
-					if err != nil {
-						return false, nil, fmt.Errorf("error detecting license for commit %s and file %s. %v", job.commit.SHA, filename, err)
-					}
+		// check if the filename looks like a possible license file
+		if possibleLicense(filename) {
+			var err error
+			buf := []byte(job.file.String())
+			if !enry.IsBinary(buf) {
+				license, err = detect(filename, buf)
+				if err != nil {
+					return false, nil, fmt.Errorf("error detecting license for commit %s and file %s. %v", job.commit.SHA, filename, err)
 				}
 			}
-			return true, &BlameResult{
-				Commit:             job.commit,
-				Language:           "",
-				Filename:           filename,
-				Lines:              nil,
-				Loc:                0,
-				Sloc:               0,
-				Comments:           0,
-				Blanks:             0,
-				Complexity:         0,
-				WeightedComplexity: 0,
-				Skipped:            skipped,
-				License:            license,
-				Status:             cf.Status,
-			}, nil
 		}
-	} else {
-		// if removed, we need to keep a record so we can detect it
-		// but we don't need blame, etc so just send it to the results channel
-		if cf.Status == GitFileCommitStatusRemoved {
-			return true, &BlameResult{
-				Commit:             job.commit,
-				Language:           "",
-				Filename:           filename,
-				Lines:              nil,
-				Loc:                0,
-				Sloc:               0,
-				Comments:           0,
-				Blanks:             0,
-				Complexity:         0,
-				WeightedComplexity: 0,
-				Skipped:            removedFile,
-				License:            license,
-				Status:             cf.Status,
-			}, nil
-		}
+		return true, &BlameResult{
+			Commit:             job.commit,
+			Language:           "",
+			Filename:           filename,
+			Lines:              nil,
+			Loc:                0,
+			Sloc:               0,
+			Comments:           0,
+			Blanks:             0,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            skipped,
+			License:            license,
+			Status:             cf.Status,
+		}, nil
 	}
 	return false, nil, nil
 }
@@ -278,8 +253,7 @@ func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
 		Status:   job.commit.Files[filename].Status,
 	}
 	if job.file == nil {
-		fmt.Println(job.commit)
-		fmt.Println(filename)
+		fmt.Println(job.commit, filename)
 		panic("file was nil")
 	}
 	filebuf := []byte(job.file.String())
@@ -328,6 +302,11 @@ func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
 	}
 	processor.CountStats(filejob)
 	filejob.Content = nil
+
+	if job.file.Empty() && job.commit.Files[filename].Status == GitFileCommitStatusModified {
+		fmt.Println("++FILENAME="+filejob.Filename, "sha=", job.commit.SHA, "empty=", job.file.Empty(), "lines=", filejob.Lines, "sloc=", filejob.Code, "filesize=", int64(filesize), "loc=", len(lines))
+		panic(10)
+	}
 
 	result.Size = int64(filesize)
 	result.Loc = filejob.Lines
