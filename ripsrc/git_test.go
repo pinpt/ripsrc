@@ -1,6 +1,7 @@
 package ripsrc
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,4 +72,12 @@ func TestGetFilename(t *testing.T) {
 		response, _, _ := getFilename(v.data)
 		assert.Equal(response, v.answer)
 	}
+}
+
+func TestGetFilenameEscaping(t *testing.T) {
+	assert := assert.New(t)
+	var c commitFileHistory
+	assert.Equal("123__foo_bar_go.json.gz", c.getFilename("123", "/foo/bar.go"))
+	assert.Equal("123_foo_bar_go.json.gz", c.getFilename("123", "foo bar.go"))
+	assert.Equal("123_foo_bar_go.json.gz", c.getFilename("123", fmt.Sprintf("foo%cbar.go", '\\')))
 }

@@ -206,8 +206,10 @@ func (c *commitFileHistory) GetPreviousCommitSHA(filename string, commit string)
 	return found
 }
 
+var badre = regexp.MustCompile("([\\.\\s\\/\\\\]+)")
+
 func (c *commitFileHistory) getFilename(commit string, filename string) string {
-	fn := strings.Replace(strings.Replace(filename, fmt.Sprintf("%c", filepath.Separator), "_", -1), ".", "_", -1)
+	fn := badre.ReplaceAllString(filename, "_")
 	return fmt.Sprintf("%s_%s.json.gz", commit, fn)
 }
 

@@ -85,14 +85,30 @@ var rootCmd = &cobra.Command{
 				if blame.License != nil {
 					license = fmt.Sprintf("%v (%.0f%%)", color.RedString(blame.License.Name), 100*blame.License.Confidence)
 				}
-				fmt.Fprintf(color.Output, "[%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s\n", color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status)
+				fmt.Fprintf(color.Output, "[%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
 			}
 			resultsDone <- true
 		}()
 		started := time.Now()
-		if err := ripsrc.Rip(ctx, args[0], results, filter); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+		if f, err := os.Stat(filepath.Join(args[0], ".git")); err == nil && f.IsDir() {
+			if err := ripsrc.Rip(ctx, args[0], results, filter); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		} else {
+			files, err := ioutil.ReadDir(args[0])
+			if err != nil {
+				panic(err)
+			}
+			for _, dir := range files {
+				fd, _ := filepath.Abs(filepath.Join(args[0], dir.Name(), ".git"))
+				if _, err := os.Stat(fd); err == nil {
+					if err := ripsrc.Rip(ctx, filepath.Dir(fd), results, filter); err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				}
+			}
 		}
 		close(results)
 		<-resultsDone
