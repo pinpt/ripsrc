@@ -371,6 +371,9 @@ func (c *commitFileHistory) process(filename string, diff *diff, processed map[s
 		if !history.NewFile && file.Empty() {
 			continue
 		}
+		if history.Patch.Empty() {
+			continue
+		}
 		if !history.Deleted {
 			// fmt.Println("#############", filename, history.SHA, "BEFORE >>"+file.Stringify(true)+"<<")
 			// fmt.Println("PATCH", filename, ">>", history.Patch.String()+"<<")

@@ -152,6 +152,11 @@ type Patch struct {
 	MergeCommit bool
 }
 
+// Empty returns true if the patch is empty
+func (p *Patch) Empty() bool {
+	return p.hunks == nil || len(p.hunks) == 0
+}
+
 func (p *Patch) String() string {
 	var buf strings.Builder
 	for _, hunk := range p.hunks {
