@@ -23,6 +23,7 @@ type filehistory struct {
 	RenameFrom string
 	Deleted    bool
 	Binary     bool
+	NewFile    bool
 }
 
 // diff has one or more patch files contained in the diff set
@@ -51,6 +52,7 @@ const (
 	renameFromHeaderPrefix = "rename from "
 	deletedHeaderPrefix    = "deleted file"
 	binaryHeaderPrefix     = "Binary files "
+	newfileHeaderPrefix    = "new file "
 )
 
 func (d *diff) String() string {
@@ -92,12 +94,17 @@ func (d *diff) parse(line string) (bool, error) {
 				}
 				d.state = lookingForHeader
 				d.patch = patch.New(d.filename, commit)
-				d.current = &filehistory{commit, d.patch, "", "", false, false}
+				d.current = &filehistory{commit, d.patch, "", "", false, false, false}
 				d.history = append(d.history, d.current)
 			}
 			break
 		case lookingForHeader:
-			if strings.HasPrefix(line, diffheaderPrefix) {
+			if strings.HasPrefix(line, string(parentPrefix)) {
+				parents := strings.TrimSpace(line[len(parentPrefix):])
+				if len(strings.Split(parents, " ")) > 1 {
+					d.patch.MergeCommit = true
+				}
+			} else if strings.HasPrefix(line, diffheaderPrefix) {
 				d.state = lookingForStart
 				break
 			}
@@ -118,6 +125,8 @@ func (d *diff) parse(line string) (bool, error) {
 				d.current.Deleted = true
 			} else if strings.HasPrefix(line, binaryHeaderPrefix) {
 				d.current.Binary = true
+			} else if strings.HasPrefix(line, newfileHeaderPrefix) {
+				d.current.NewFile = true
 			}
 		case insidePatch:
 			if strings.HasPrefix(line, diffheaderPrefix) {

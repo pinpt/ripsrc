@@ -98,6 +98,7 @@ var (
 	committerNamePrefix = []byte("!CName: ")
 	signedEmailPrefix   = []byte("!Signed-Email: ")
 	messagePrefix       = []byte("!Message: ")
+	parentPrefix        = []byte("!Parent: ")
 	emailRegex          = regexp.MustCompile("<(.*)>")
 	emailBracketsRegex  = regexp.MustCompile("^\\[(.*)\\]$")
 	datePrefix          = []byte("!Date: ")
@@ -362,6 +363,14 @@ func (c *commitFileHistory) process(filename string, diff *diff, processed map[s
 				file = patch.NewFile(filename)
 			}
 		}
+		// if this is an empty file and the patch is for a merge, skip it
+		if history.Patch.MergeCommit {
+			continue
+		}
+		// if we have an empty file and it's not new, this is related to a merge
+		if !history.NewFile && file.Empty() {
+			continue
+		}
 		if !history.Deleted {
 			// fmt.Println("#############", filename, history.SHA, "BEFORE >>"+file.Stringify(true)+"<<")
 			// fmt.Println("PATCH", filename, ">>", history.Patch.String()+"<<")
@@ -413,7 +422,7 @@ func (p *fileprocessor) process(filename string) error {
 		"-p",
 		"--reverse",
 		"--no-abbrev-commit",
-		"--pretty=format:!SHA: %H",
+		"--pretty=format:!SHA: %H%n!Parent: %P",
 		"-m",
 		"--first-parent",
 		"--",

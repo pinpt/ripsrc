@@ -146,9 +146,10 @@ func (f *File) Parse(buf string, commit string) error {
 
 // Patch describes a set of changes
 type Patch struct {
-	Filename string
-	Commit   string
-	hunks    []*hunk
+	Filename    string
+	Commit      string
+	hunks       []*hunk
+	MergeCommit bool
 }
 
 func (p *Patch) String() string {
@@ -211,8 +212,8 @@ func (p *Patch) Apply(file *File, commit string) *File {
 					fmt.Println("commit", commit, p.Filename, hunk.context, offset)
 					fmt.Println(p.Filename, o)
 					fmt.Println(file)
-					fmt.Println("--> current lines=>", newfile.Stringify(true))
-					fmt.Println(hunk.context)
+					fmt.Println("--> current lines=>>", newfile.Stringify(true)+"<<")
+					fmt.Println("patch context=", hunk.context, "is merge commit?", p.MergeCommit)
 					panic(fmt.Sprintf("invalid patch for commit %s and file %s. need to delete line %d but only has %d lines", commit, p.Filename, offset, len(newfile.Lines)))
 				}
 				if Debug {

@@ -112,15 +112,20 @@ var rootCmd = &cobra.Command{
 			}
 			for _, dir := range files {
 				fd, _ := filepath.Abs(filepath.Join(args[0], dir.Name(), ".git"))
-				resultsDone, results := createRepoProcessor(filepath.Base(filepath.Dir(filepath.Dir(fd)))+"/"+filepath.Base(filepath.Dir(fd)), true)
 				if _, err := os.Stat(fd); err == nil {
+					name := filepath.Base(filepath.Dir(filepath.Dir(fd))) + "/" + filepath.Base(filepath.Dir(fd))
+					resultsDone, results := createRepoProcessor(name, true)
+					fmt.Fprintf(color.Output, "starting repo processing for %v\n", color.HiGreenString(name))
+					start := count
+					localstart := time.Now()
 					if err := ripsrc.Rip(ctx, filepath.Dir(fd), results, filter); err != nil {
 						fmt.Println(err)
 						os.Exit(1)
 					}
+					close(results)
+					<-resultsDone
+					fmt.Fprintf(color.Output, "finished repo processing for %v in %v. %d entries processed\n", color.HiGreenString(name), time.Since(localstart), count-start)
 				}
-				close(results)
-				<-resultsDone
 			}
 		}
 		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
