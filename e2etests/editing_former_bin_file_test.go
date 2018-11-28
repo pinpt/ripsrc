@@ -5,7 +5,7 @@ import (
 )
 
 // This is a test case for the following condition.
-// If the file in repo was a binary at some point and then switched to text and was modified. The git log with patches does not contain the full file content. There are 2 options to fix this, either we ignore all files that at some point in history were binary or retrieve the file content for these cases not from log, but from a checkout.
+// If the file in repo was a binary at some point and then switched to text and was modified, then git log with patches does not contain the full file content. There are 2 options to fix this, either we ignore all files that at some point in history were binary or retrieve the full file content for these cases separately without using log and patches.
 func TestEditingFormerBinFile(t *testing.T) {
 	test := NewTest(t, "editing_former_bin_file")
 	_ = test.Run()
