@@ -7,7 +7,7 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	test := NewTest(t, "repo1")
+	test := NewTest(t, "basic")
 	got := test.Run()
 
 	u1n := "User1"

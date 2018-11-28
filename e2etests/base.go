@@ -41,7 +41,7 @@ func (s *Test) Run() []ripsrc.BlameResult {
 	repoDirWrapper := filepath.Join(s.tempDir, "repo")
 	unzip(filepath.Join(".", "testdata", s.repoName+".zip"), repoDirWrapper)
 
-	repoDir := filepath.Join(repoDirWrapper, s.repoName)
+	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
 
 	res := make(chan ripsrc.BlameResult, 1)
 	done := make(chan bool)
@@ -61,6 +61,19 @@ func (s *Test) Run() []ripsrc.BlameResult {
 	}
 	<-done
 	return res2
+}
+
+func firstDir(loc string) string {
+	entries, err := ioutil.ReadDir(loc)
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			return entry.Name()
+		}
+	}
+	panic("no dir in: " + loc)
 }
 
 func unzip(archive, dir string) error {
