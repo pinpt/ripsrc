@@ -113,13 +113,13 @@ func TestBasic(t *testing.T) {
 					  // do nothing
 					}
 				*/
-				line(u2n, u2e, c2d, false, true, false),
-				line(u2n, u2e, c2d, false, false, true),
-				line(u2n, u2e, c2d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, false, true),
+				line(u1n, u1e, c1d, false, true, false),
 				line(u2n, u2e, c2d, true, false, false),
-				line(u2n, u2e, c2d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false),
 				// BUG: TODO: an ending newline should be classified as blank line
-				line(u2n, u2e, c2d, false, false, false),
+				line(u1n, u1e, c1d, false, false, false),
 			},
 			Size:               46,
 			Loc:                5,

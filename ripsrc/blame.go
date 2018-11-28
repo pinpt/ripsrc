@@ -61,6 +61,9 @@ type BlameProcessor struct {
 	// since some of the rule checks are quite expensive regexps, etc.
 	hashedExclusions map[string]*exclusionDecision
 	mu               sync.Mutex
+
+	commitsMetaByHash   map[string]CommitMeta
+	commitsMetaByHashMu sync.RWMutex
 }
 
 const (
@@ -241,7 +244,27 @@ const maxBytesPerLine = 1096
 // and skip it
 const maxFileSize = 1000000
 
+type CommitMeta struct {
+	AuthorName  string
+	AuthorEmail string
+	Date        time.Time
+}
+
 func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
+	p.commitsMetaByHashMu.RLock()
+	if _, ok := p.commitsMetaByHash[job.commit.SHA]; !ok {
+		p.commitsMetaByHashMu.RUnlock()
+		p.commitsMetaByHashMu.Lock()
+		p.commitsMetaByHash[job.commit.SHA] = CommitMeta{
+			AuthorName:  job.commit.AuthorName,
+			AuthorEmail: job.commit.AuthorEmail,
+			Date:        job.commit.Date,
+		}
+		p.commitsMetaByHashMu.Unlock()
+	} else {
+		p.commitsMetaByHashMu.RUnlock()
+	}
+
 	ok, res, err := p.preprocess(job)
 	if ok {
 		return res, err
@@ -284,10 +307,18 @@ func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
 			result.Skipped = fmt.Sprintf(maxLineBytesExceed, len(line.Buffer)/1024, maxBytesPerLine/1024)
 			return result, nil
 		}
+
+		p.commitsMetaByHashMu.RLock()
+		meta, ok := p.commitsMetaByHash[line.Commit]
+		if !ok {
+			panic("commit metadata not found by sha, were commits processed out of order?")
+		}
+		p.commitsMetaByHashMu.RUnlock()
+
 		lines = append(lines, &BlameLine{
-			Name:  job.commit.Author(),
-			Email: job.commit.AuthorEmail,
-			Date:  job.commit.Date,
+			Name:  meta.AuthorName,
+			Email: meta.AuthorEmail,
+			Date:  meta.Date,
 			line:  &line.Buffer,
 		})
 	}
@@ -335,8 +366,9 @@ func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
 // NewBlameProcessor returns a new processor
 func NewBlameProcessor(filter *Filter) *BlameProcessor {
 	return &BlameProcessor{
-		filter:           filter,
-		hashedExclusions: make(map[string]*exclusionDecision),
+		filter:            filter,
+		hashedExclusions:  make(map[string]*exclusionDecision),
+		commitsMetaByHash: make(map[string]CommitMeta),
 	}
 }
 
