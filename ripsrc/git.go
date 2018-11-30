@@ -290,6 +290,10 @@ func (c *commitFileHistory) wait() error {
 func (c *commitFileHistory) process(filename string, diff *diff, processed map[string]bool) (map[string]bool, error) {
 	var err error
 	for i, history := range diff.history {
+		if history.Binary {
+			// ignore binary changes
+			continue
+		}
 		if c.exists(history.SHA, filename) {
 			continue // commits are idompotent so if we've already processed it, just use it again
 		}
