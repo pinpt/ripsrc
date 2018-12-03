@@ -311,7 +311,7 @@ func (p *BlameProcessor) process(job commitjob) (*BlameResult, error) {
 		p.commitsMetaByHashMu.RLock()
 		meta, ok := p.commitsMetaByHash[line.Commit]
 		if !ok {
-			panic("commit metadata not found by sha, were commits processed out of order?")
+			panic(fmt.Errorf("commit metadata not found by sha, were commits processed out of order? processing commit: %v line commit: %v line: %v", job.commit.SHA, line.Commit, line.Buffer))
 		}
 		p.commitsMetaByHashMu.RUnlock()
 
