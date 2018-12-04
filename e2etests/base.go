@@ -282,7 +282,7 @@ func commitFileEqual(f1, f2 *ripsrc.CommitFile) bool {
 
 func parseGitDate(s string) time.Time {
 	//Tue Nov 27 21:55:36 2018 +0100
-	r, err := time.Parse("Mon Jan 02 15:04:05 2006 -0700", s)
+	r, err := time.Parse("Mon Jan 2 15:04:05 2006 -0700", s)
 	if err != nil {
 		panic(err)
 	}
