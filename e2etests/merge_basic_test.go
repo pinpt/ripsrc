@@ -63,6 +63,31 @@ func TestMergeBasic(t *testing.T) {
 		//Previous: &commit1,
 	}
 
+	c3d := parseGitDate("Tue Dec 4 17:42:10 2018 +0100")
+
+	f3 := ripsrc.CommitFile{
+		Filename:  "main.go",
+		Status:    ripsrc.GitFileCommitStatusModified,
+		Additions: 1,
+	}
+
+	commit3 := ripsrc.Commit{
+		Dir:            "",
+		SHA:            "a08d204ee5913986294000e1280e7ad3484098e3",
+		AuthorName:     u1n,
+		AuthorEmail:    u1e,
+		CommitterName:  u1n,
+		CommitterEmail: u1e,
+		Files: map[string]*ripsrc.CommitFile{
+			"main.go": &f3,
+		},
+		Message: "a",
+		Date:    c3d,
+		//Parent:   nil,
+		Signed: false,
+		//Previous: &commit1,
+	}
+
 	want := []ripsrc.BlameResult{
 		{
 			Commit:   commit1,
@@ -113,6 +138,37 @@ func TestMergeBasic(t *testing.T) {
 			Loc:                5,
 			Sloc:               3,
 			Comments:           1,
+			Blanks:             1,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            "",
+			License:            nil,
+			Status:             ripsrc.GitFileCommitStatusModified,
+		},
+		{
+			Commit:   commit3,
+			Language: "Go",
+			Filename: "main.go",
+			Lines: []*ripsrc.BlameLine{
+				/*
+					package main
+
+					func main(){
+					// A
+					// M
+					}
+				*/
+				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, false, true),
+				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c3d, true, false, false),
+				line(u1n, u1e, c2d, true, false, false),
+				line(u1n, u1e, c1d, false, true, false),
+			},
+			Size:               38,
+			Loc:                6,
+			Sloc:               3,
+			Comments:           2,
 			Blanks:             1,
 			Complexity:         0,
 			WeightedComplexity: 0,

@@ -430,8 +430,9 @@ func (p *fileprocessor) process(filename string) error {
 		"--reverse",
 		"--no-abbrev-commit",
 		"--pretty=format:!SHA: %H%n!Parent: %P",
-		"-m",
-		"--first-parent",
+		// need to match the commits from git log call in streamCommits
+		"--no-merges",
+		"--topo-order",
 		"--",
 		filename,
 	}
