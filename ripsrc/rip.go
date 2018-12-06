@@ -69,25 +69,32 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 		var mu sync.Mutex
 		// feed each commit into our worker pool for blame processing
 		for commit := range commits {
-			total := len(commit.Files)
-			if total == 0 {
+			filetotal := len(commit.Files)
+			if filetotal == 0 {
 				continue
 			}
 			var filecount int
 			currentSha := commit.SHA
-			res := make(chan BlameResult, total)
-			localerrors := make(chan error, total)
+			res := make(chan BlameResult, filetotal)
+			localerrors := make(chan error, filetotal)
+			var localwg sync.WaitGroup
+			localwg.Add(1)
 			// submit will send the commit job for async processing ... however, we need to stream them
 			// back to the results channel in order that they were originally committed so we're going to
 			// have to reorder the results and cache the pending ones that finish before the right order
 			pool.Submit(commit, func(err error, result *BlameResult, total int) {
 				mu.Lock()
 				defer mu.Unlock()
-				// fmt.Println("RESULT", result.Commit.SHA, result.Filename, filecount+1, total, "->", currentSha)
 				filecount++
 				last := total == filecount
+				// fmt.Println("RESULT", result.Commit.SHA, result.Filename, filecount+1, total, "->", "last", last, "filetotal", filetotal)
 				if err != nil {
-					localerrors <- err
+					select {
+					case localerrors <- err:
+						break
+					default:
+						panic("cannot write error to localerrors")
+					}
 				} else {
 					if result != nil {
 						arr := backlog[result.Commit.SHA]
@@ -107,26 +114,38 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 								return arr[i].Filename < arr[j].Filename
 							})
 							for _, r := range arr {
-								res <- *r
+								select {
+								case res <- *r:
+									break
+								default:
+									panic("cannot write to results, blocked")
+								}
 								count++
 							}
-							close(res)
 							// delete the save memory
 							delete(backlog, result.Commit.SHA)
 							if len(backlog) != 0 {
 								panic("backlog should be empty") // logic check
 							}
 							arr = nil
+							defer localwg.Done()
 						}
 					} else {
 						panic("ripsrc git blame returned a nil result")
 					}
 				}
 			})
+			localwg.Wait()
+			close(res)
 			// wait for all files in the commit to be processed before continuing so that commits
 			// are ordered properly
-			for i := 0; i < total; i++ {
-				results <- <-res
+			for r := range res {
+				select {
+				case results <- r:
+					break
+				default:
+					panic("cannot write the file result to results channel, blocked")
+				}
 			}
 			// check to see if we had an error and if so, send it on and then stop processing
 			select {
@@ -152,6 +171,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 			return fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
 		}
 	}
+	fmt.Println("finished streaming all commits, will now block for commits to finish")
 	close(commits)
 	wg.Wait()
 	pool.Close()

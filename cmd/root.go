@@ -76,7 +76,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 		var count int
-		results := make(chan ripsrc.BlameResult, 10)
+		results := make(chan ripsrc.BlameResult, 100000)
 		resultsDone := make(chan bool, 1)
 		go func() {
 			for blame := range results {
