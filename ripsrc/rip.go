@@ -171,7 +171,7 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 			return fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
 		}
 	}
-	fmt.Println("finished streaming all commits, will now block for commits to finish")
+	// fmt.Println("finished streaming all commits, will now block for commits to finish")
 	close(commits)
 	wg.Wait()
 	pool.Close()
