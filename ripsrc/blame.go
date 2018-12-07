@@ -413,7 +413,21 @@ func (p *BlameWorkerPool) process(job filejob) {
 			}, job.total)
 			return
 		}
-		job.commit.callback(fmt.Errorf("error processing commit %s %s (%s). %v", job.commit.SHA, job.filename, job.commit.Dir, err), nil, job.total)
+		fmt.Printf("[ERROR] skipped commit %s (%s) because of an error from git blame: %v\n", job.commit.SHA, job.filename, err)
+		job.commit.callback(nil, &BlameResult{
+			Commit:             job.commit,
+			Language:           "",
+			Filename:           job.filename,
+			Lines:              nil,
+			Loc:                0,
+			Sloc:               0,
+			Comments:           0,
+			Blanks:             0,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            err.Error(),
+			Status:             job.commit.Files[job.filename].Status,
+		}, job.total)
 		return
 	}
 	// if the file is bigger than what we support, we are going to assume it's a generated file
