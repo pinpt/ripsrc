@@ -413,7 +413,21 @@ func (p *BlameWorkerPool) process(job filejob) {
 			}, job.total)
 			return
 		}
-		job.commit.callback(fmt.Errorf("error processing commit %s %s (%s). %v", job.commit.SHA, job.filename, job.commit.Dir, err), nil, job.total)
+		fmt.Printf("[ERROR] skipped commit %s (%s) because of an error from git blame: %v\n", job.commit.SHA, job.filename, err)
+		job.commit.callback(nil, &BlameResult{
+			Commit:             job.commit,
+			Language:           "",
+			Filename:           job.filename,
+			Lines:              nil,
+			Loc:                0,
+			Sloc:               0,
+			Comments:           0,
+			Blanks:             0,
+			Complexity:         0,
+			WeightedComplexity: 0,
+			Skipped:            err.Error(),
+			Status:             job.commit.Files[job.filename].Status,
+		}, job.total)
 		return
 	}
 	// if the file is bigger than what we support, we are going to assume it's a generated file
@@ -510,14 +524,15 @@ func (p *BlameWorkerPool) process(job filejob) {
 // NewBlameWorkerPool returns a new worker pool
 func NewBlameWorkerPool(ctx context.Context, errors chan<- error, filter *Filter) *BlameWorkerPool {
 	filejobcount := runtime.NumCPU()
+	commitjobcount := 1
 	return &BlameWorkerPool{
 		ctx:              ctx,
-		commitjobcount:   1,                 // we can only process one at a time
+		commitjobcount:   commitjobcount,    // we can only process one at a time
 		filejobcount:     filejobcount,      // we can keep CPU busy if commit has multiple files
 		commitjobs:       make(chan Commit), // we can only process one at a time
 		filejobs:         make(chan filejob, filejobcount*2),
-		commitdone:       make(chan bool, 1),
-		filedone:         make(chan bool, 1),
+		commitdone:       make(chan bool, commitjobcount),
+		filedone:         make(chan bool, filejobcount),
 		errors:           errors,
 		filter:           filter,
 		hashedExclusions: make(map[string]*exclusionDecision),
