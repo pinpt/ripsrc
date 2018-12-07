@@ -510,14 +510,15 @@ func (p *BlameWorkerPool) process(job filejob) {
 // NewBlameWorkerPool returns a new worker pool
 func NewBlameWorkerPool(ctx context.Context, errors chan<- error, filter *Filter) *BlameWorkerPool {
 	filejobcount := runtime.NumCPU()
+	commitjobcount := 1
 	return &BlameWorkerPool{
 		ctx:              ctx,
-		commitjobcount:   1,                 // we can only process one at a time
+		commitjobcount:   commitjobcount,    // we can only process one at a time
 		filejobcount:     filejobcount,      // we can keep CPU busy if commit has multiple files
 		commitjobs:       make(chan Commit), // we can only process one at a time
 		filejobs:         make(chan filejob, filejobcount*2),
-		commitdone:       make(chan bool, 1),
-		filedone:         make(chan bool, 1),
+		commitdone:       make(chan bool, commitjobcount),
+		filedone:         make(chan bool, filejobcount),
 		errors:           errors,
 		filter:           filter,
 		hashedExclusions: make(map[string]*exclusionDecision),
