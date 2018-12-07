@@ -78,13 +78,14 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 			res := make(chan BlameResult, filetotal)
 			localerrors := make(chan error, filetotal)
 			var localwg sync.WaitGroup
-			localwg.Add(1)
+			localwg.Add(filetotal)
 			// submit will send the commit job for async processing ... however, we need to stream them
 			// back to the results channel in order that they were originally committed so we're going to
 			// have to reorder the results and cache the pending ones that finish before the right order
 			pool.Submit(commit, func(err error, result *BlameResult, total int) {
 				mu.Lock()
 				defer mu.Unlock()
+				defer localwg.Done() // for each file
 				filecount++
 				last := total == filecount
 				// fmt.Println("RESULT", result.Commit.SHA, result.Filename, filecount+1, total, "->", "last", last, "filetotal", filetotal)
@@ -128,7 +129,6 @@ func Rip(ctx context.Context, dir string, results chan<- BlameResult, filter *Fi
 								panic("backlog should be empty") // logic check
 							}
 							arr = nil
-							defer localwg.Done()
 						}
 					} else {
 						panic("ripsrc git blame returned a nil result")
