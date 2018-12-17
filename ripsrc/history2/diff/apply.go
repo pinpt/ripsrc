@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -24,8 +26,8 @@ type File struct {
 // String returns compact string representation of file. Useful in tests to see output.
 func (f File) String() string {
 	out := []string{}
-	for _, l := range f.Lines {
-		out = append(out, l.String())
+	for i, l := range f.Lines {
+		out = append(out, strconv.Itoa(i)+":"+l.String())
 	}
 	return strings.Join(out, "\n")
 }
@@ -50,10 +52,16 @@ func Apply(file File, diff Diff, commit string) File {
 		}
 		res = temp
 	}
+
+	sort.Slice(diff.Hunks, func(i, j int) bool {
+		a := diff.Hunks[i]
+		b := diff.Hunks[j]
+		return a.Contexts[0].Offset > b.Contexts[0].Offset
+	})
+
 	for _, h := range diff.Hunks {
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
 		i := h.Contexts[0].Offset - 1
-		fmt.Println(len(res), i, string(h.Data))
 		if i == -1 {
 			i = 0
 		}
@@ -63,7 +71,7 @@ func Apply(file File, diff Diff, commit string) File {
 			op := b[0]
 			data := b[1:]
 			switch op {
-			case '\t':
+			case ' ', '\t':
 				// no change
 				i++
 			case '-':
@@ -72,6 +80,8 @@ func Apply(file File, diff Diff, commit string) File {
 			case '+':
 				addLine(i, data)
 				i++
+			default:
+				panic(fmt.Errorf("invalid patch prefix, line %s prefix %v", b, op))
 			}
 		}
 		if err := scanner.Err(); err != nil {

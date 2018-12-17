@@ -28,10 +28,10 @@ index 43f9419..1671209 100644
 	
 -import "github.com/pinpt/ripsrc/cmd"
 -
-	func main() {
+ func main() {
 -       cmd.Execute()
 +  // do nothing
-}
+	}
 `
 
 func TestApplyBasic1(t *testing.T) {
