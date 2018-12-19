@@ -38,6 +38,10 @@ func NewNilFile() File {
 }
 
 func ApplyMerge(parents []File, diff Diff, commit string) File {
+	//fmt.Println("parent1")
+	//fmt.Println(parents[0])
+	//fmt.Println("parent2")
+	//fmt.Println(parents[1])
 	res := make([]Line, len(parents[0].Lines))
 	copy(res, parents[0].Lines)
 
@@ -67,6 +71,13 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 			i = 0
 		}
 
+		lenp := len(parents)
+		// offsets are used to retrieve corresponding line owner from merge parent
+		offsets := make([]int, lenp)
+		for i := 0; i < lenp; i++ {
+			offsets[i] = h.Contexts[i].Offset - 2
+		}
+
 		for scanner.Scan() {
 			b := scanner.Bytes()
 			if len(b) == 0 {
@@ -75,9 +86,36 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 			if len(b) < len(parents) {
 				panic(fmt.Errorf("could not process patch line, len < len(parentsy, h.Data %v", string(h.Data)))
 			}
-			lenp := len(parents)
+
 			ops := b[0:lenp]
 			data := b[lenp:]
+
+			for i, v := range ops[1:] {
+				i += 1
+				switch v {
+				case ' ', '\t':
+					// if was removed from another parent, and was not in this one at all
+					removedFromAnother := false
+					for _, v := range ops {
+						if v == '-' {
+							removedFromAnother = true
+						}
+					}
+					if removedFromAnother {
+						// this line was not in parent, if it would be in parent it would be marked as - as well
+					} else {
+						offsets[i]++
+					}
+				case '-':
+					offsets[i]--
+				case '+':
+				default:
+					panic(fmt.Errorf("offsets invalid patch prefix, line '%s' prefix '%v' '%s'", b, v, string(v)))
+				}
+			}
+
+			//fmt.Println("offsets", offsets, "line", string(b))
+
 			switch ops[0] {
 			case ' ', '\t':
 				// no change
@@ -97,12 +135,17 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 					// source is merge itself
 					src = commit
 				} else {
-					src = parents[srcI].Commit
+					offset := offsets[srcI]
+					lines := parents[srcI].Lines
+					if offset < 0 || offset >= len(lines) {
+						panic(fmt.Errorf("invalid offset for merge parent, wanted %v, len(lines)=%v", offset, len(lines)))
+					}
+					src = lines[offset].Commit
 				}
 				addLine(i, data, src)
 				i++
 			default:
-				panic(fmt.Errorf("invalid patch prefix, line %s prefix %v", b, ops[0]))
+				panic(fmt.Errorf("invalid patch prefix, line %s prefix '%v' '%s'", b, ops[0], string(ops[0])))
 			}
 		}
 		if err := scanner.Err(); err != nil {
