@@ -68,8 +68,8 @@ index 0eb2edb..4422a7d 100644
 func TestMultiDiffA2(t *testing.T) {
 	c1 := "c1"
 	c2 := "c2"
-	f := Apply(NewNilFile(), Parse([]byte(multiDiffA1)), c1)
-	f = Apply(f, Parse([]byte(multiDiffA2)), c2)
+	f := applySingleParent(NewNilFile(), Parse([]byte(multiDiffA1)), c1)
+	f = applySingleParent(f, Parse([]byte(multiDiffA2)), c2)
 
 	want := File{
 		Lines: []Line{

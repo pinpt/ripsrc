@@ -24,3 +24,7 @@ func diffString(diff Diff) string {
 	}
 	return strings.Join(res, "\n")
 }
+
+func tparse(diff string) Diff {
+	return Parse([]byte(diff))
+}

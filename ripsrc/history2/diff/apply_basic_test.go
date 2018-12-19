@@ -37,7 +37,7 @@ index 43f9419..1671209 100644
 func TestApplyBasic1(t *testing.T) {
 	diff := Parse([]byte(basicDiff1))
 	c1 := "c1"
-	f2 := Apply(NewNilFile(), diff, c1)
+	f2 := applySingleParent(NewNilFile(), diff, c1)
 
 	want := File{
 		Lines: []Line{
@@ -60,9 +60,9 @@ func TestApplyBasic2Regular(t *testing.T) {
 	c2 := "c2"
 
 	diff := Parse([]byte(basicDiff1))
-	f := Apply(NewNilFile(), diff, c1)
+	f := applySingleParent(NewNilFile(), diff, c1)
 	diff = Parse([]byte(basicDiff2))
-	f = Apply(f, diff, c2)
+	f = applySingleParent(f, diff, c2)
 
 	want := File{
 		Lines: []Line{
