@@ -1,4 +1,4 @@
-package diff
+package incblame
 
 import (
 	"testing"
@@ -22,9 +22,11 @@ index 0000000..43f9419
 +`
 
 	want := Diff{
+		PathPrev: "",
+		Path:     "main.go",
 		Hunks: []Hunk{
 			{
-				Contexts: []HunkContext{
+				Locations: []HunkLocation{
 					{OpDel, 0, 0},
 					{OpAdd, 1, 8},
 				},
@@ -62,9 +64,11 @@ index 43f9419..1671209 100644
 }`
 
 	want := Diff{
+		PathPrev: "main.go",
+		Path:     "main.go",
 		Hunks: []Hunk{
 			{
-				Contexts: []HunkContext{
+				Locations: []HunkLocation{
 					{OpDel, 1, 8},
 					{OpAdd, 1, 6},
 				},
@@ -113,9 +117,11 @@ index 0eb2edb..4422a7d 100644
 	c`
 
 	want := Diff{
+		PathPrev: "a.go",
+		Path:     "a.go",
 		Hunks: []Hunk{
 			{
-				Contexts: []HunkContext{
+				Locations: []HunkLocation{
 					{OpDel, 1, 6},
 					{OpAdd, 1, 9},
 				},
@@ -131,7 +137,7 @@ index 0eb2edb..4422a7d 100644
 `),
 			},
 			{
-				Contexts: []HunkContext{
+				Locations: []HunkLocation{
 					{OpDel, 20, 6},
 					{OpAdd, 23, 9},
 				},

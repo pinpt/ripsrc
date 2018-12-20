@@ -1,4 +1,4 @@
-package diff
+package incblame
 
 import (
 	"testing"
@@ -37,9 +37,9 @@ index 43f9419..1671209 100644
 func TestApplyBasic1(t *testing.T) {
 	diff := Parse([]byte(basicDiff1))
 	c1 := "c1"
-	f2 := applySingleParent(NewNilFile(), diff, c1)
+	f2 := Apply(nil, diff, c1)
 
-	want := File{
+	want := Blame{
 		Lines: []Line{
 			tl(`package main`, c1),
 			tl(``, c1),
@@ -60,11 +60,11 @@ func TestApplyBasic2Regular(t *testing.T) {
 	c2 := "c2"
 
 	diff := Parse([]byte(basicDiff1))
-	f := applySingleParent(NewNilFile(), diff, c1)
+	f := Apply(nil, diff, c1)
 	diff = Parse([]byte(basicDiff2))
-	f = applySingleParent(f, diff, c2)
+	f = applyOneParent(f, diff, c2)
 
-	want := File{
+	want := Blame{
 		Lines: []Line{
 			tl(`package main`, c1),
 			tl(``, c1),

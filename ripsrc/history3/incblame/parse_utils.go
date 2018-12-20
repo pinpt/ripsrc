@@ -1,4 +1,4 @@
-package diff
+package incblame
 
 import (
 	"bytes"
@@ -7,7 +7,14 @@ import (
 	"strings"
 )
 
-func parseContext(b []byte) (res []HunkContext) {
+func startsWith(b []byte, prefix string) bool {
+	if len(prefix) > len(b) {
+		return false
+	}
+	return string(b[:len(prefix)]) == prefix
+}
+
+func parseContext(b []byte) (res []HunkLocation) {
 	rerr := func(msg string) {
 		panic(fmt.Errorf("invalid diff context format %v %v", string(b), msg))
 	}
@@ -19,7 +26,7 @@ func parseContext(b []byte) (res []HunkContext) {
 		if len(p) < 4 {
 			rerr("")
 		}
-		one := HunkContext{}
+		one := HunkLocation{}
 		switch p[0] {
 		case '-':
 			one.Op = OpDel

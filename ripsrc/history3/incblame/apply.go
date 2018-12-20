@@ -1,4 +1,4 @@
-package diff
+package incblame
 
 import (
 	"bufio"
@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// Blame contains blame information for a file, with commit hash that created each particular line.
+type Blame struct {
+	Commit string
+	Lines  []Line
+}
+
+// Line contains actual data and commit hash for each line in the file.
 type Line struct {
 	Line   []byte
 	Commit string
@@ -19,29 +26,28 @@ func (l Line) String() string {
 	return l.Commit + ":" + string(l.Line)
 }
 
-type File struct {
-	Commit string
-	Lines  []Line
-}
-
 // String returns compact string representation of file. Useful in tests to see output.
-func (f File) String() string {
-	out := []string{}
+func (f Blame) String() string {
+	out := []string{f.Commit}
 	for i, l := range f.Lines {
 		out = append(out, strconv.Itoa(i)+":"+l.String())
 	}
 	return strings.Join(out, "\n")
 }
 
-func NewNilFile() File {
-	return File{}
+// Apply create a new blame data for file based on diff and parent commit blame data.
+func Apply(parents []Blame, diff Diff, commit string) Blame {
+	if len(parents) == 0 {
+		return applyOneParent(Blame{}, diff, commit)
+	}
+	if len(parents) == 1 {
+		return applyOneParent(parents[0], diff, commit)
+	}
+	return applyMerge(parents, diff, commit)
 }
 
-func ApplyMerge(parents []File, diff Diff, commit string) File {
-	//fmt.Println("parent1")
-	//fmt.Println(parents[0])
-	//fmt.Println("parent2")
-	//fmt.Println(parents[1])
+// applyMerge creates a new file with blame data based on merge diff and parent blame data.
+func applyMerge(parents []Blame, diff Diff, commit string) Blame {
 	res := make([]Line, len(parents[0].Lines))
 	copy(res, parents[0].Lines)
 
@@ -61,12 +67,12 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 	sort.Slice(diff.Hunks, func(i, j int) bool {
 		a := diff.Hunks[i]
 		b := diff.Hunks[j]
-		return a.Contexts[0].Offset > b.Contexts[0].Offset
+		return a.Locations[0].Offset > b.Locations[0].Offset
 	})
 
 	for _, h := range diff.Hunks {
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
-		i := h.Contexts[0].Offset - 1
+		i := h.Locations[0].Offset - 1
 		if i == -1 {
 			i = 0
 		}
@@ -75,7 +81,7 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 		// offsets are used to retrieve corresponding line owner from merge parent
 		offsets := make([]int, lenp)
 		for i := 0; i < lenp; i++ {
-			offsets[i] = h.Contexts[i].Offset - 2
+			offsets[i] = h.Locations[i].Offset - 2
 		}
 
 		for scanner.Scan() {
@@ -114,8 +120,6 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 				}
 			}
 
-			//fmt.Println("offsets", offsets, "line", string(b))
-
 			switch ops[0] {
 			case ' ', '\t':
 				// no change
@@ -153,10 +157,10 @@ func ApplyMerge(parents []File, diff Diff, commit string) File {
 		}
 	}
 
-	return File{Lines: res, Commit: commit}
+	return Blame{Lines: res, Commit: commit}
 }
 
-func applySingleParent(file File, diff Diff, commit string) File {
+func applyOneParent(file Blame, diff Diff, commit string) Blame {
 	res := make([]Line, len(file.Lines))
 	copy(res, file.Lines)
 
@@ -176,12 +180,12 @@ func applySingleParent(file File, diff Diff, commit string) File {
 	sort.Slice(diff.Hunks, func(i, j int) bool {
 		a := diff.Hunks[i]
 		b := diff.Hunks[j]
-		return a.Contexts[0].Offset > b.Contexts[0].Offset
+		return a.Locations[0].Offset > b.Locations[0].Offset
 	})
 
 	for _, h := range diff.Hunks {
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
-		i := h.Contexts[0].Offset - 1
+		i := h.Locations[0].Offset - 1
 		if i == -1 {
 			i = 0
 		}
@@ -212,7 +216,7 @@ func applySingleParent(file File, diff Diff, commit string) File {
 		}
 	}
 
-	return File{Lines: res, Commit: commit}
+	return Blame{Lines: res, Commit: commit}
 }
 
 func copyLines(lines []Line) (res []Line) {

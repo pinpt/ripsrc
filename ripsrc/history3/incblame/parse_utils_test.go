@@ -1,4 +1,4 @@
-package diff
+package incblame
 
 import (
 	"reflect"
@@ -9,12 +9,12 @@ func TestParseContext(t *testing.T) {
 
 	cases := []struct {
 		In   string
-		Want []HunkContext
+		Want []HunkLocation
 	}{
 		// regular
-		{"@@ -0,0 +1,8 @@", []HunkContext{{OpDel, 0, 0}, {OpAdd, 1, 8}}},
+		{"@@ -0,0 +1,8 @@", []HunkLocation{{OpDel, 0, 0}, {OpAdd, 1, 8}}},
 		// section heading
-		{"@@ -3,2 +2,0 @@ package main", []HunkContext{{OpDel, 3, 2}, {OpAdd, 2, 0}}},
+		{"@@ -3,2 +2,0 @@ package main", []HunkLocation{{OpDel, 3, 2}, {OpAdd, 2, 0}}},
 	}
 
 	for _, c := range cases {

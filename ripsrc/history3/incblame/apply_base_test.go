@@ -1,4 +1,4 @@
-package diff
+package incblame
 
 import (
 	"reflect"
@@ -6,7 +6,7 @@ import (
 )
 
 // TODO: rename to assertEqualLines
-func assertEqualFiles(t *testing.T, got, want File) {
+func assertEqualFiles(t *testing.T, got, want Blame) {
 	t.Helper()
 	if len(got.Lines) != len(want.Lines) {
 		t.Errorf("len mismatch, got\n%+v\nwanted\n%+v", got, want)
