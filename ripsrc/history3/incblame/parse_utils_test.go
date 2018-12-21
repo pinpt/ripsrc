@@ -15,6 +15,8 @@ func TestParseContext(t *testing.T) {
 		{"@@ -0,0 +1,8 @@", []HunkLocation{{OpDel, 0, 0}, {OpAdd, 1, 8}}},
 		// section heading
 		{"@@ -3,2 +2,0 @@ package main", []HunkLocation{{OpDel, 3, 2}, {OpAdd, 2, 0}}},
+		// when adding to empty file
+		{"@@ -0,0 +1 @@ package main", []HunkLocation{{OpDel, 0, 0}, {OpAdd, 0, 1}}},
 	}
 
 	for _, c := range cases {

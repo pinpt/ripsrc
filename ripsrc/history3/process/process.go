@@ -52,6 +52,7 @@ func (s *Process) Run(resChan chan Result) error {
 		res := Result{}
 		res.Commit = commit.Hash
 		res.Files = map[string]*incblame.Blame{}
+
 		for _, ch := range commit.Changes {
 			diff := incblame.Parse(ch.Diff)
 			if diff.Path == "" {
@@ -59,7 +60,6 @@ func (s *Process) Run(resChan chan Result) error {
 				res.Files[diff.PathPrev] = &incblame.Blame{Commit: commit.Hash}
 				continue
 			}
-
 			var parents []incblame.Blame
 			for _, p := range commit.Parents {
 				pb, ok := s.repo[p][diff.PathPrev]
@@ -70,9 +70,28 @@ func (s *Process) Run(resChan chan Result) error {
 			}
 
 			blame := incblame.Apply(parents, diff, commit.Hash)
-			s.repoSave(commit.Hash, diff.Path, blame)
+			s.repoSave(commit.Hash, diff.Path, &blame)
 			res.Files[diff.Path] = &blame
 		}
+
+		// copy unchanged file references from first parent
+		if len(commit.Parents) >= 1 {
+			p := commit.Parents[0]
+			files := s.repo[p]
+			for path, blame := range files {
+
+				// was in the diff changes, nothing to do
+				if _, ok := res.Files[path]; ok {
+					continue
+				}
+				// copy reference
+				s.repoSave(commit.Hash, path, blame)
+
+				// No need to send the file to result. We only need blame info for changed files.
+				//res.Files[diff.Path] = &blame
+			}
+		}
+
 		resChan <- res
 	}
 
@@ -81,11 +100,11 @@ func (s *Process) Run(resChan chan Result) error {
 	return nil
 }
 
-func (s *Process) repoSave(commit, path string, blame incblame.Blame) {
+func (s *Process) repoSave(commit, path string, blame *incblame.Blame) {
 	if _, ok := s.repo[commit]; !ok {
 		s.repo[commit] = map[string]*incblame.Blame{}
 	}
-	s.repo[commit][path] = &blame
+	s.repo[commit][path] = blame
 }
 
 func (s *Process) RunGetAll() (_ []Result, err error) {

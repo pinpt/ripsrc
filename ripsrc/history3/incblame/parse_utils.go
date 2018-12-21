@@ -23,7 +23,7 @@ func parseContext(b []byte) (res []HunkLocation) {
 	b = bytes.Trim(b, "@ ")
 	parts := bytes.Split(b, []byte(" "))
 	for _, p := range parts {
-		if len(p) < 4 {
+		if len(p) < 2 {
 			rerr("")
 		}
 		one := HunkLocation{}
@@ -36,8 +36,17 @@ func parseContext(b []byte) (res []HunkLocation) {
 			rerr("invalid op")
 		}
 		parts := strings.Split(string(p[1:]), ",")
-		if len(parts) != 2 {
+		if len(parts) != 2 && len(parts) != 1 {
 			rerr("")
+		}
+		if len(parts) == 1 {
+			var err error
+			one.Lines, err = strconv.Atoi(parts[0])
+			if err != nil {
+				rerr("")
+			}
+			res = append(res, one)
+			continue
 		}
 		var err error
 		one.Offset, err = strconv.Atoi(parts[0])
