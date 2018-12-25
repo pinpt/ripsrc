@@ -27,7 +27,7 @@
 
 [[constraint]]
   name = "github.com/boyter/scc"
-  version = "1.10.0"
+  version = "2.0.0"
 
 [[constraint]]
   name = "github.com/fatih/color"

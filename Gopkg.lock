@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  digest = "1:b9f0f63707fb5ea66307339cad43034d745ddfed916fcb99af04984953cdfd75"
+  digest = "1:c1e6e440afa5b0c885c35e14f70193bd2856919bc67ee0fcaaed7730b3340894"
   name = "github.com/boyter/scc"
   packages = ["processor"]
   pruneopts = "NUT"
-  revision = "f466da50673ba14762766647787974777f6b0f6e"
-  version = "v1.10.0"
+  revision = "2e3c3ad25f830c4af04bbe20afa0d99a4f9eb814"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -421,8 +421,8 @@
     "regex",
   ]
   pruneopts = "NUT"
-  revision = "15bb13117fb1cc607bf87046d41ac7b53084c18b"
-  version = "v1.6.5"
+  revision = "8953e0e19a9a08c69113f672fbd89f6082b379d5"
+  version = "v1.6.7"
 
 [[projects]]
   digest = "1:8e3881a0a4df25498d732d66b38cc9417264ffd856b939f5a598c29aedcc3c97"
