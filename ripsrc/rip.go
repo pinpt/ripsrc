@@ -2,134 +2,117 @@ package ripsrc
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-	"sync"
+	"time"
 
-	"github.com/pinpt/ripsrc/ripsrc/patch"
+	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
+
+	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
 
-// Filter provides a blacklist (exclude) and/or whitelist (include) filter
-type Filter struct {
-	Blacklist *regexp.Regexp
-	Whitelist *regexp.Regexp
-	// the SHA to start streaming from, if not provided will start from the beginning
-	SHA string
-	// the number of commits to limit, if 0 will include them all
-	Limit int
+// BlameResult holds details about the blame result
+type BlameResult struct {
+	Commit             Commit
+	Language           string
+	Filename           string
+	Lines              []*BlameLine
+	Size               int64
+	Loc                int64
+	Sloc               int64
+	Comments           int64
+	Blanks             int64
+	Complexity         int64
+	WeightedComplexity float64
+	Skipped            string
+	License            *License
+	Status             CommitStatus
 }
 
-func formatBuf(line string) string {
-	toks := strings.Split(line, "\n")
-	newtoks := []string{}
-	for i, tok := range toks {
-		newtoks = append(newtoks, fmt.Sprintf("%02d|%s", 1+i, tok))
-	}
-	return strings.Join(newtoks, "\n")
+// Commit is a specific detail around a commit
+type Commit = commitmeta.Commit
+
+// CommitFile is a specific detail around a file in a commit
+type CommitFile = commitmeta.CommitFile
+
+// BlameLine is a single line entry in blame
+type BlameLine struct {
+	Name    string
+	Email   string
+	Date    time.Time
+	Comment bool
+	Code    bool
+	Blank   bool
 }
 
-type commitjob struct {
-	filename string
-	commit   Commit
-	file     *patch.File
+// License holds details about detected license
+type License struct {
+	Name       string
+	Confidence float32
 }
 
-// Rip will rip through the directory provided looking for git directories
-// and will stream blame details for each commit back to results
-// the results channel will automatically be called once all the commits are
-// streamed. this function will block until all results are streamed
-func Rip(ctx context.Context, fdir string, results chan<- BlameResult, filter *Filter) error {
-	dir, _ := filepath.Abs(fdir)
-	gitdir := filepath.Join(dir, ".git")
-	if _, err := os.Stat(gitdir); os.IsNotExist(err) {
-		return fmt.Errorf("error finding git dir from %v", dir)
+// CommitStatus is a commit status type
+type CommitStatus = commitmeta.CommitStatus
+
+const (
+	// GitFileCommitStatusAdded is the added status
+	GitFileCommitStatusAdded = commitmeta.GitFileCommitStatusAdded
+	// GitFileCommitStatusModified is the modified status
+	GitFileCommitStatusModified = commitmeta.GitFileCommitStatusModified
+	// GitFileCommitStatusRemoved is the removed status
+	GitFileCommitStatusRemoved = commitmeta.GitFileCommitStatusRemoved
+)
+
+type Ripper struct {
+	commitMeta map[string]Commit
+}
+
+func New() *Ripper {
+	return &Ripper{}
+}
+
+func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) error {
+	defer close(res)
+
+	err := s.getCommitInfo(ctx, repoDir)
+	if err != nil {
+		panic(err)
 	}
-	errors := make(chan error, 1)
-	size := 10000000 // FIXME once we fix the history.wait below make this reasonable
-	var debugdir string
-	if RipDebug {
-		cwd, _ := os.Getwd()
-		debugdir = filepath.Join(cwd, "ripsrc-debug")
-		os.RemoveAll(debugdir)
-	}
-	cachedir := filepath.Join(gitdir, ".ripcache")
-	if _, err := os.Stat(cachedir); os.IsNotExist(err) {
-		os.MkdirAll(cachedir, 0755)
-	}
-	history := newCommitFileHistory(cachedir)
-	processor := NewBlameProcessor(filter)
-	commits := make(chan Commit, size)
-	commitjobs := make(chan commitjob, 1000)
-	var wg sync.WaitGroup
-	var total int
-	wg.Add(1)
-	// start the goroutine for processing before we start processing
+
+	gitRes := make(chan process.Result)
+	done := make(chan bool)
 	go func() {
-		defer wg.Done()
-		// TODO: wait to block below when the file is needed instead of up front
-		if err := history.wait(); err != nil {
-			errors <- err
-			close(commitjobs)
-			return
-		}
-		for commit := range commits {
-			for filename, cf := range commit.Files {
-				// fmt.Println("@@", commit.SHA, filename)
-				file, err := history.Get(filename, commit.SHA)
-				if err != nil {
-					errors <- err
-					close(commitjobs)
-					return
-				}
-				// we skip commits not found since they may not be part of the history as related to merging
-				if cf.Status == GitFileCommitStatusModified && (file == nil || file.Empty()) {
-					continue
-				}
-				commitjobs <- commitjob{filename, commit, file}
-			}
-			total++
-		}
-		close(commitjobs)
-		history = nil
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for job := range commitjobs {
-			result, err := processor.process(job)
+		for r1 := range gitRes {
+			rs, err := s.codeInfoFiles(r1)
 			if err != nil {
-				errors <- err
-				return
+				panic(err)
 			}
-			if result != nil {
-				results <- *result
+			for _, r := range rs {
+				res <- r
 			}
 		}
+		done <- true
 	}()
-	var sha string
-	var limit int
-	if filter != nil && filter.SHA != "" {
-		sha = filter.SHA
-	}
-	if filter != nil && filter.Limit > 0 {
-		limit = filter.Limit
-	}
-	if err := streamCommits(ctx, gitdir, cachedir, sha, limit, processor, history, commits, errors); err != nil {
-		return fmt.Errorf("error streaming commits from git dir from %v. %v", gitdir, err)
-	}
-	close(commits)
-	wg.Wait()
-	select {
-	case err := <-errors:
+
+	gitProcessor := process.New(repoDir)
+	err = gitProcessor.Run(gitRes)
+	if err != nil {
 		return err
-	default:
-		break
 	}
+
+	<-done
+
 	return nil
 }
 
-// RipDebug is a setting for printing out detail during rip
-var RipDebug = os.Getenv("RIPSRC_DEBUG") == "true"
+func (s *Ripper) RipSlice(ctx context.Context, repoDir string) (res []BlameResult, _ error) {
+	resChan := make(chan BlameResult)
+	done := make(chan bool)
+	go func() {
+		for r := range resChan {
+			res = append(res, r)
+		}
+		done <- true
+	}()
+	err := s.Rip(ctx, repoDir, resChan)
+	<-done
+	return res, err
+}

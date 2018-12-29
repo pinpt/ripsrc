@@ -32,7 +32,6 @@ func TestBasic(t *testing.T) {
 	}
 
 	commit1 := ripsrc.Commit{
-		Dir:            "",
 		SHA:            "b4dadc54e312e976694161c2ac59ab76feb0c40d",
 		AuthorName:     u1n,
 		AuthorEmail:    u1e,
@@ -43,13 +42,12 @@ func TestBasic(t *testing.T) {
 		},
 		Message: "c1",
 		Date:    c1d,
-		Parent:  nil,
-		Signed:  false,
+		//Parent:  nil,
+		Signed: false,
 		//Previous: nil,
 	}
 
 	commit2 := ripsrc.Commit{
-		Dir:            "",
 		SHA:            "69ba50fff990c169f80de96674919033a0a9b66d",
 		AuthorName:     u2n,
 		AuthorEmail:    u2e,
@@ -87,14 +85,13 @@ func TestBasic(t *testing.T) {
 				line(u1n, u1e, c1d, false, true, false),
 				line(u1n, u1e, c1d, false, true, false),
 				line(u1n, u1e, c1d, false, true, false),
-				// BUG: TODO: an ending newline should be classified as blank line
-				line(u1n, u1e, c1d, false, false, false),
+				line(u1n, u1e, c1d, false, false, true),
 			},
-			Size:               83,
-			Loc:                7,
+			Size:               84,
+			Loc:                8,
 			Sloc:               5,
 			Comments:           0,
-			Blanks:             2,
+			Blanks:             3,
 			Complexity:         0,
 			WeightedComplexity: 0,
 			Skipped:            "",
@@ -118,14 +115,13 @@ func TestBasic(t *testing.T) {
 				line(u1n, u1e, c1d, false, true, false),
 				line(u2n, u2e, c2d, true, false, false),
 				line(u1n, u1e, c1d, false, true, false),
-				// BUG: TODO: an ending newline should be classified as blank line
-				line(u1n, u1e, c1d, false, false, false),
+				line(u1n, u1e, c1d, false, false, true),
 			},
-			Size:               46,
-			Loc:                5,
+			Size:               47,
+			Loc:                6,
 			Sloc:               3,
 			Comments:           1,
-			Blanks:             1,
+			Blanks:             2,
 			Complexity:         0,
 			WeightedComplexity: 0,
 			Skipped:            "",

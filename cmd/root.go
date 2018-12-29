@@ -6,11 +6,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/pinpt/ripsrc/ripsrc"
+	"github.com/pinpt/ripsrc/ripsrc2"
 	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 )
@@ -59,22 +58,23 @@ var rootCmd = &cobra.Command{
 				}
 			}
 		}
-		var filter *ripsrc.Filter
-		include, _ := cmd.Flags().GetString("include")
-		exclude, _ := cmd.Flags().GetString("exclude")
-		sha, _ := cmd.Flags().GetString("sha")
-		if include != "" || exclude != "" || sha != "" {
-			filter = &ripsrc.Filter{}
-			if include != "" {
-				filter.Whitelist = regexp.MustCompile(include)
-			}
-			if exclude != "" {
-				filter.Blacklist = regexp.MustCompile(exclude)
-			}
-			if sha != "" {
-				filter.SHA = sha
-			}
-		}
+		/*
+			var filter *ripsrc.Filter
+			include, _ := cmd.Flags().GetString("include")
+			exclude, _ := cmd.Flags().GetString("exclude")
+			sha, _ := cmd.Flags().GetString("sha")
+			if include != "" || exclude != "" || sha != "" {
+				filter = &ripsrc.Filter{}
+				if include != "" {
+					filter.Whitelist = regexp.MustCompile(include)
+				}
+				if exclude != "" {
+					filter.Blacklist = regexp.MustCompile(exclude)
+				}
+				if sha != "" {
+					filter.SHA = sha
+				}
+			}*/
 		var count int
 		createRepoProcessor := func(repo string, printname bool) (chan bool, chan ripsrc.BlameResult) {
 			resultsDone := make(chan bool, 1)
@@ -99,11 +99,10 @@ var rootCmd = &cobra.Command{
 		started := time.Now()
 		if f, err := os.Stat(filepath.Join(args[0], ".git")); err == nil && f.IsDir() {
 			resultsDone, results := createRepoProcessor("", false)
-			if err := ripsrc.Rip(ctx, args[0], results, filter); err != nil {
+			if err := ripsrc.New().Rip(ctx, args[0], results); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			close(results)
 			<-resultsDone
 		} else {
 			files, err := ioutil.ReadDir(args[0])
@@ -118,11 +117,10 @@ var rootCmd = &cobra.Command{
 					fmt.Fprintf(color.Output, "starting repo processing for %v\n", color.HiGreenString(name))
 					start := count
 					localstart := time.Now()
-					if err := ripsrc.Rip(ctx, filepath.Dir(fd), results, filter); err != nil {
+					if err := ripsrc.New().Rip(ctx, filepath.Dir(fd), results); err != nil {
 						fmt.Println(err)
 						os.Exit(1)
 					}
-					close(results)
 					<-resultsDone
 					fmt.Fprintf(color.Output, "finished repo processing for %v in %v. %d entries processed\n", color.HiGreenString(name), time.Since(localstart), count-start)
 				}

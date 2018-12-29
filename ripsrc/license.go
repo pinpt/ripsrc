@@ -33,12 +33,6 @@ func (f *memoryfiler) ReadDir(path string) ([]filer.File, error) {
 func (f *memoryfiler) Close() {
 }
 
-// License holds details about detected license
-type License struct {
-	Name       string  `json:"license"`
-	Confidence float32 `json:"confidence"`
-}
-
 var licenses = regexp.MustCompile("\\/?(LICENSE|LICENCE|README|COPYING|LICENSE-.*|UNLICENSE|UNLICENCE)(\\.(md|txt))?$")
 
 func possibleLicense(filename string) bool {

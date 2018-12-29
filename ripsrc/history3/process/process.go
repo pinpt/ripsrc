@@ -60,15 +60,26 @@ func (s *Process) Run(resChan chan Result) error {
 				res.Files[diff.PathPrev] = &incblame.Blame{Commit: commit.Hash}
 				continue
 			}
-			var parents []incblame.Blame
-			for _, p := range commit.Parents {
-				pb, ok := s.repo[p][diff.PathPrev]
-				if !ok {
-					panic(fmt.Errorf("could not find reference for commit %v, path %v", p, diff.PathPrev))
-				}
-				parents = append(parents, *pb)
-			}
+			// TODO: test renames here as well
 
+			var parents []incblame.Blame
+			if diff.PathPrev == "" {
+				// TODO: add unit test for this cond
+				// file added
+				// no parents
+			} else {
+				for _, p := range commit.Parents {
+					pb, ok := s.repo[p][diff.PathPrev]
+					if !ok {
+						filesAtParent := []string{}
+						for f := range s.repo[p] {
+							filesAtParent = append(filesAtParent, f)
+						}
+						panic(fmt.Errorf("could not find reference for commit %v parent %v, path %v, pathPrev %v, files at parent\n%v", commit.Hash, p, diff.Path, diff.PathPrev, filesAtParent))
+					}
+					parents = append(parents, *pb)
+				}
+			}
 			blame := incblame.Apply(parents, diff, commit.Hash)
 			s.repoSave(commit.Hash, diff.Path, &blame)
 			res.Files[diff.Path] = &blame

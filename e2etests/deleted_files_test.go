@@ -28,7 +28,6 @@ func TestDeletedFiles(t *testing.T) {
 	}
 
 	commit1 := ripsrc.Commit{
-		Dir:            "",
 		SHA:            "624f3a74bf727e365cfbd090b9b993ddded0e1ea",
 		AuthorName:     u1n,
 		AuthorEmail:    u1e,
@@ -39,13 +38,12 @@ func TestDeletedFiles(t *testing.T) {
 		},
 		Message: "c1",
 		Date:    c1d,
-		Parent:  nil,
-		Signed:  false,
+		//Parent:  nil,
+		Signed: false,
 		//Previous: nil,
 	}
 
 	commit2 := ripsrc.Commit{
-		Dir:            "",
 		SHA:            "9c7629df59b283bdec8b9705cb17c822652f6fae",
 		AuthorName:     u1n,
 		AuthorEmail:    u1e,
@@ -78,7 +76,7 @@ func TestDeletedFiles(t *testing.T) {
 				line(u1n, u1e, c1d, false, true, false),
 				line(u1n, u1e, c1d, false, true, false),
 			},
-			Size:               28,
+			Size:               29,
 			Loc:                4,
 			Sloc:               3,
 			Comments:           0,

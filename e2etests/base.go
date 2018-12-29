@@ -43,24 +43,11 @@ func (s *Test) Run() []ripsrc.BlameResult {
 
 	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
 
-	res := make(chan ripsrc.BlameResult, 1)
-	done := make(chan bool)
-
-	res2 := []ripsrc.BlameResult{}
-	go func() {
-		for item := range res {
-			res2 = append(res2, item)
-		}
-		done <- true
-	}()
-
-	err = ripsrc.Rip(context.Background(), repoDir, res, nil)
-	close(res)
+	res, err := ripsrc.New().RipSlice(context.Background(), repoDir)
 	if err != nil {
 		t.Fatal("Rip returned error", err)
 	}
-	<-done
-	return res2
+	return res
 }
 
 func firstDir(loc string) string {
@@ -297,4 +284,8 @@ func line(name string, email string, date time.Time, comment, code, blank bool) 
 		Comment: comment,
 		Code:    code,
 		Blank:   blank}
+}
+
+func filep(f ripsrc.CommitFile) *ripsrc.CommitFile {
+	return &f
 }
