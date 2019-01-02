@@ -52,11 +52,16 @@ var validateIncBlameCmd = &cobra.Command{
 							l1 := bl1.Lines[i]
 							l2 := bl2.Lines[i]
 							if l1.Commit != l2.CommitHash {
-								fmt.Println("invalid commit")
-								rerr()
+								if string(l1.Line) == "" && l2.Content == "" {
+									// TODO: revisit later
+									// do not care about invalid commit sha for empty lines
+								} else {
+									fmt.Println("invalid commit, line ", i)
+									rerr()
+								}
 							}
 							if string(l1.Line) != l2.Content {
-								fmt.Println("invalid content")
+								fmt.Println("invalid content, line ", i)
 								rerr()
 							}
 						}

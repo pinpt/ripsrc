@@ -36,7 +36,7 @@ index 1661cbb..1dbddb0 100644
 +// M
 	}`
 
-	diff4 := `diff --cc main.go
+	diff4 := `diff --combined main.go
 index 1dbddb0,4cd4b38..904d55b
 --- a/main.go
 +++ b/main.go
@@ -295,8 +295,7 @@ index f2c18b2..9102991 100644
 	u
 	i`
 
-	diff4m := `
-diff --git a/a.go b/a.go
+	diff4m := `diff --git a/a.go b/a.go
 index f2c18b2..b702c0b 100644
 --- a/a.go
 +++ b/a.go
@@ -308,8 +307,7 @@ index f2c18b2..b702c0b 100644
 	i
 +3`
 
-	diff5merge := `
-diff --combined a.go
+	diff5merge := `diff --combined a.go
 index b702c0b,5886731,9102991..7570414
 --- a/a.go
 +++ b/a.go

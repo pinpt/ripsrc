@@ -26,13 +26,43 @@ func (l Line) String() string {
 	return l.Commit + ":" + string(l.Line)
 }
 
+func (l Line) Eq(l2 Line) bool {
+	if l.Commit != l2.Commit {
+		return false
+	}
+	if !bytes.Equal(l.Line, l2.Line) {
+		return false
+	}
+	return true
+}
+
 // String returns compact string representation of file. Useful in tests to see output.
 func (f Blame) String() string {
 	out := []string{f.Commit}
+	if len(f.Lines) == 0 {
+		out = append(out, "empty")
+	}
 	for i, l := range f.Lines {
 		out = append(out, strconv.Itoa(i)+":"+l.String())
 	}
 	return strings.Join(out, "\n")
+}
+
+func (f Blame) Eq(f2 *Blame) bool {
+	if f.Commit != f2.Commit {
+		return false
+	}
+	if len(f.Lines) != len(f2.Lines) {
+		return false
+	}
+	for i := range f.Lines {
+		a := f.Lines[i]
+		b := f2.Lines[i]
+		if !a.Eq(b) {
+			return false
+		}
+	}
+	return true
 }
 
 // Apply create a new blame data for file based on diff and parent commit blame data.
@@ -52,6 +82,9 @@ func applyMerge(parents []Blame, diff Diff, commit string) Blame {
 	copy(res, parents[0].Lines)
 
 	remLine := func(i int) {
+		if i > len(res) {
+			panic(fmt.Errorf("trying to remove line which is not in blame, commit %v line %v blame %v", commit, i, parents[0]))
+		}
 		res = append(res[:i], res[i+1:]...)
 	}
 	addLine := func(i int, data []byte, commit string) {
@@ -72,6 +105,8 @@ func applyMerge(parents []Blame, diff Diff, commit string) Blame {
 
 	for _, h := range diff.Hunks {
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
+		scanner.Buffer(make([]byte, maxLine), maxLine)
+
 		i := h.Locations[0].Offset - 1
 		if i == -1 {
 			i = 0
@@ -193,7 +228,10 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 		if len(h.Locations) == 0 {
 			panic(fmt.Errorf("no location in diff hunk %+v", h))
 		}
+
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
+		scanner.Buffer(nil, maxLine)
+
 		i := h.Locations[0].Offset - 1
 		if i == -1 {
 			i = 0

@@ -45,6 +45,7 @@ func Parse(content []byte) (res Diff) {
 }
 
 const (
+	stParseDiff      = "stParseDiff"
 	stParsingPreMeta = "stParsingPreMeta"
 	stNextIsCurrName = "stNextIsCurrName"
 	stNextIsContext  = "stNextIsContext"
@@ -87,10 +88,11 @@ func (p *parser) Parse() (res Diff) {
 	//		p.endNl = true
 	//	}
 
-	p.state = stParsingPreMeta
+	p.state = stParseDiff
 	p.preMeta = map[string]string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(p.content))
+	scanner.Buffer(nil, maxLine)
 	for scanner.Scan() {
 		p.line(scanner.Bytes())
 	}
@@ -119,6 +121,18 @@ func (p *parser) Parse() (res Diff) {
 
 func (p *parser) line(b []byte) {
 	switch p.state {
+	case stParseDiff:
+		p.state = stParsingPreMeta
+
+		var err error
+		p.diff.PathPrev, p.diff.Path, err = parseDiffDecl(b)
+		if err != nil {
+			if err == errParseDiffDeclMerge {
+				// will get name from diff later
+				return
+			}
+			panic(err)
+		}
 	case stParsingPreMeta:
 		if !startsWith(b, "---") {
 			for _, s := range p.wantedMeta {

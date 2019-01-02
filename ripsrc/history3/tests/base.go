@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
@@ -121,7 +120,11 @@ func assertResult(t *testing.T, want, got []process.Result) {
 			t.Fatalf("invalid number of entries %v for commit %v, got\n%v", len(w.Files), commit, g.Files)
 		}
 		for filePath := range w.Files {
-			if !reflect.DeepEqual(w.Files[filePath], g.Files[filePath]) {
+			gf := g.Files[filePath]
+			if gf == nil {
+				t.Fatalf("missing file %v commit %v\nwanted\n%v", filePath, commit, w.Files[filePath])
+			}
+			if !w.Files[filePath].Eq(gf) {
 				t.Fatalf("invalid patch for file %v commit %v, got\n%v\nwanted\n%v", filePath, commit, g.Files[filePath], w.Files[filePath])
 			}
 		}

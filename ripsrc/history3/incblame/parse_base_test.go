@@ -16,7 +16,7 @@ func assertEqualDiffs(t *testing.T, got, want Diff) {
 
 func diffString(diff Diff) string {
 	res := []string{}
-	res = append(res, "paths:"+diff.PathPrev+","+diff.Path)
+	res = append(res, `paths:'`+diff.PathPrev+`:`+diff.Path+`'`)
 	for _, h := range diff.Hunks {
 		res = append(res,
 			fmt.Sprintf("%+v", h.Locations),

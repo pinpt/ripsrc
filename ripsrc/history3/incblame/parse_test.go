@@ -228,7 +228,7 @@ func TestParseSpaceInName(t *testing.T) {
 new file mode 100644
 index 0000000..7898192
 --- /dev/null
-+++ b/a a.txt   
++++ b/a a.txt
 @@ -0,0 +1 @@
 +a
 `
@@ -240,10 +240,9 @@ index 0000000..7898192
 			{
 				Locations: []HunkLocation{
 					{OpDel, 0, 0},
-					{OpAdd, 1, 1},
+					{OpAdd, 0, 1},
 				},
-				Data: []byte(`-a
-+a
+				Data: []byte(`+a
 `),
 			},
 		},

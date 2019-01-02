@@ -90,9 +90,10 @@ func (s *Process) Run(resChan chan Result) error {
 					panic(fmt.Errorf("rename with more than 1 parent (merge) not supported: %v diff: %v", commit.Hash, string(ch.Diff)))
 				}
 			} else {
-				if len(diff.Hunks) == 0 {
-					panic(fmt.Errorf("no changes in commit: %v diff: %v", commit.Hash, string(ch.Diff)))
-				}
+				// this is an empty file creation
+				//if len(diff.Hunks) == 0 {
+				//	panic(fmt.Errorf("no changes in commit: %v diff: %v", commit.Hash, string(ch.Diff)))
+				//}
 			}
 
 			var parents []incblame.Blame
@@ -102,12 +103,18 @@ func (s *Process) Run(resChan chan Result) error {
 				for _, p := range commit.Parents {
 					pb, ok := s.repo[p][diff.PathPrev]
 					if !ok {
-						filesAtParent := []string{}
-						for f := range s.repo[p] {
-							filesAtParent = append(filesAtParent, f)
-						}
-						panic(fmt.Errorf("could not find reference for commit %v parent %v, path %v, pathPrev %v, files at parent\n%v", commit.Hash, p, diff.Path, diff.PathPrev, filesAtParent))
+						// use empty file since merge will have line for it
+						pb = &incblame.Blame{Commit: p}
+						// file is not necessary in all parents if it was created in branch and then modified at merge
+						// see merge_new_with_change test
+						/*
+							filesAtParent := []string{}
+							for f := range s.repo[p] {
+								filesAtParent = append(filesAtParent, f)
+							}
+							panic(fmt.Errorf("could not find file reference for commit %v parent %v, path %v, pathPrev %v, files at parent\n%v", commit.Hash, p, diff.Path, diff.PathPrev, filesAtParent))*/
 					}
+
 					parents = append(parents, *pb)
 				}
 			}

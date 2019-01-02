@@ -32,6 +32,9 @@ func New(r io.Reader) *Parser {
 	return p
 }
 
+const mb = 1000 * 1000
+const maxLine = 10 * mb
+
 func (s *Parser) Run(res chan Commit) error {
 	defer close(res)
 
@@ -39,11 +42,13 @@ func (s *Parser) Run(res chan Commit) error {
 	s.state = stNotStarted
 
 	scanner := bufio.NewScanner(s.r)
+	scanner.Buffer(nil, maxLine)
 	for scanner.Scan() {
-		s.line(scanner.Bytes())
+		line := scanner.Bytes()
+		s.line(line)
 	}
 	if err := scanner.Err(); err != nil {
-		panic(err)
+		return err
 	}
 
 	s.endCommit()

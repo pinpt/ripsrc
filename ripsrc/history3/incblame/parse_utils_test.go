@@ -29,3 +29,87 @@ func TestParseContext(t *testing.T) {
 	}
 
 }
+
+func TestParseDiffDecl(t *testing.T) {
+
+	cases := []struct {
+		Label     string
+		In        string
+		FromPath  string
+		ToPath    string
+		ErrMerge  bool
+		ErrSpaces bool
+		ErrOther  bool
+	}{
+		{
+			Label:    "basic",
+			In:       "diff --git a/a.txt b/b.txt",
+			FromPath: "a.txt",
+			ToPath:   "b.txt",
+		},
+		{
+			Label:    "merge prefix",
+			In:       "diff --combined main.go",
+			ErrMerge: true,
+		},
+		{
+			Label:    "space in name",
+			In:       "diff --git a/a a.txt b/a a.txt",
+			FromPath: "a a.txt",
+			ToPath:   "a a.txt",
+		},
+		{
+			Label:    "in subdir",
+			In:       "diff --git a/a/a.txt b/a/a.txt",
+			FromPath: "a/a.txt",
+			ToPath:   "a/a.txt",
+		},
+		// tricky
+		// dir name = "a.txt b"
+		// file name = "b.txt"
+		// actual output from git log
+		{
+			Label:    "tricky",
+			In:       "diff --git a/a.txt b/b.txt b/a.txt b/b.txt",
+			FromPath: "a.txt b/b.txt",
+			ToPath:   "a.txt b/b.txt",
+		},
+		{
+			Label:     "rename with spaces",
+			In:        "diff --git a/a a.txt b/b b.txt",
+			ErrSpaces: true,
+		},
+		// check that invalid format does not panic
+		{Label: "invalid format", In: "", ErrOther: true},
+		{Label: "invalid format", In: "diff --git ", ErrOther: true},
+		{Label: "invalid format", In: "diff --git  ", ErrOther: true},
+		{Label: "invalid format", In: "diff --git x/a.txt x/b.txt", ErrOther: true},
+	}
+
+	for _, c := range cases {
+		fromPath, toPath, err := parseDiffDecl([]byte(c.In))
+		t.Logf("test case %v, in %v, wanted %v:%v got %v:%v", c.Label, c.In, c.FromPath, c.ToPath, fromPath, toPath)
+		if c.ErrMerge {
+			if err != errParseDiffDeclMerge {
+				t.Fatalf("wanted errParseDiffDeclMerge, got %v", err)
+			}
+		} else if c.ErrSpaces {
+			if err != errParseDiffDeclRenameWithSpaces {
+				t.Fatalf("wanted to get errParseDiffDeclRenameWithSpaces, got %v", err)
+			}
+
+		} else if c.ErrOther {
+			if err == nil {
+				t.Fatal("wanted error returned for this case")
+			}
+		} else {
+			if err != nil {
+				t.Fatal("got err", err)
+			}
+			if fromPath != c.FromPath || toPath != c.ToPath {
+				t.Fatal("paths do not match")
+			}
+		}
+	}
+
+}
