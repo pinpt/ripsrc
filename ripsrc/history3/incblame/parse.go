@@ -19,6 +19,10 @@ type Hunk struct {
 	Data      []byte
 }
 
+func (h Hunk) String() string {
+	return string(h.Data)
+}
+
 // HunkLocation is the operation, offset and line modified.
 type HunkLocation struct {
 	Op     OpType

@@ -65,10 +65,10 @@ index 0eb2edb..4422a7d 100644
  x
  c`
 
-func TestMultiDiffA2(t *testing.T) {
+func TestMultiDiff(t *testing.T) {
 	c1 := "c1"
 	c2 := "c2"
-	f := Apply(nil, Parse([]byte(multiDiffA1)), c1)
+	f := Apply(Blame{}, Parse([]byte(multiDiffA1)), c1)
 	f = applyOneParent(f, Parse([]byte(multiDiffA2)), c2)
 
 	want := Blame{

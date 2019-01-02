@@ -29,3 +29,10 @@ func diffString(diff Diff) string {
 func tparse(diff string) Diff {
 	return Parse([]byte(diff))
 }
+
+func tparseDiffs(diffs ...string) (res []Diff) {
+	for _, d := range diffs {
+		res = append(res, Parse([]byte(d)))
+	}
+	return
+}

@@ -107,8 +107,9 @@ func unzip(archive, dir string) error {
 func assertResult(t *testing.T, want, got []process.Result) {
 	t.Helper()
 	if len(want) != len(got) {
-		t.Fatalf("invalid number of entries %v, got\n%v", len(got), got)
+		t.Fatalf("invalid number of results %v, got\n%v", len(got), got)
 	}
+
 	for i := range want {
 		w := want[i]
 		g := got[i]

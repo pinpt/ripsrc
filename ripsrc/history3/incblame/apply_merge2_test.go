@@ -2,7 +2,9 @@ package incblame
 
 import "testing"
 
-func TestMerge1(t *testing.T) {
+// data source
+// testdata/merge_basic
+func TestMerge2Basic(t *testing.T) {
 	diff1 := `diff --git a/main.go b/main.go
 new file mode 100644
 index 0000000..1661cbb
@@ -36,27 +38,41 @@ index 1661cbb..1dbddb0 100644
 +// M
 	}`
 
-	diff4 := `diff --combined main.go
-index 1dbddb0,4cd4b38..904d55b
+	mergeDiff1 := `diff --git a/main.go b/main.go
+index 1dbddb0..904d55b 100644
 --- a/main.go
 +++ b/main.go
-@@@ -1,5 -1,5 +1,6 @@@
-  package main
-  
-  func main(){
-	+// M
-+ // A
-  }`
+@@ -2,4 +2,5 @@ package main
+ 
+ func main(){
+ // M
++// A
+ }`
+
+	mergeDiff2 := `diff --git a/main.go b/main.go
+index 4cd4b38..904d55b 100644
+--- a/main.go
++++ b/main.go
+@@ -1,5 +1,6 @@
+ package main
+ 
+ func main(){
++// M
+ // A
+ }`
 
 	c1base := "c1base"
 	c2branch := "c2branch"
 	c3master := "c3master"
 	c4merge := "c4merge"
 
-	f1base := Apply(nil, tparse(diff1), c1base)
+	f1base := Apply(Blame{}, tparse(diff1), c1base)
 	f2branch := applyOneParent(f1base, tparse(diff2), c2branch)
 	f3master := applyOneParent(f1base, tparse(diff3), c3master)
-	f4merge := Apply([]Blame{f3master, f2branch}, tparse(diff4), c4merge)
+	f4merge := ApplyMerge(
+		[]Blame{f3master, f2branch},
+		tparseDiffs(mergeDiff1, mergeDiff2),
+		c4merge)
 
 	want := Blame{
 		Lines: []Line{
@@ -72,7 +88,9 @@ index 1dbddb0,4cd4b38..904d55b
 	assertEqualFiles(t, f4merge, want)
 }
 
-func TestMerge2(t *testing.T) {
+// data source
+// testdata/merge_multidiff
+func TestMerge2Multidiff(t *testing.T) {
 	diff1 := `diff --git a/a.go b/a.go
 new file mode 100644
 index 0000000..3440bbd
@@ -159,58 +177,70 @@ index 3440bbd..0bb73a0 100644
 -z
 -x`
 
-	diff4 := `diff --combined a.go
-index 0bb73a0,7a73855..e5f72e3
+	mergeDiff1 := `diff --git a/a.go b/a.go
+index 0bb73a0..e5f72e3 100644
 --- a/a.go
 +++ b/a.go
-@@@ -1,3 -1,8 +1,8 @@@
-+ 1
-+ 2
-+ 3
-+ 4
-+ 5
-  q
-  w
-  e
-@@@ -7,21 -12,17 +12,25 @@@
-  u
-  i
-  o
-	+9
-	+9
-	+9
-	+9
-	+9
-	+9
-	+9
-	+9
-  p
-  a
-  s
-+ 1
-+ 2
-+ 3
-+ 4
-+ 5
-  d
-  f
-  g
-  h
-- j
-- k
-- l
-+ z
-+ x`
+@@ -1,3 +1,8 @@
++1
++2
++3
++4
++5
+ q
+ w
+ e
+@@ -18,10 +23,14 @@ o
+ p
+ a
+ s
++1
++2
++3
++4
++5
+ d
+ f
+ g
+ h
+-j
+-k
+-l
++z
++x`
+
+	mergeDiff2 := `diff --git a/a.go b/a.go
+index 7a73855..e5f72e3 100644
+--- a/a.go
++++ b/a.go
+@@ -12,6 +12,14 @@ y
+ u
+ i
+ o
++9
++9
++9
++9
++9
++9
++9
++9
+ p
+ a
+ s`
 
 	c1base := "c1base"
 	c2branch := "c2branch"
 	c3master := "c3master"
 	c4merge := "c4merge"
 
-	f1base := Apply(nil, tparse(diff1), c1base)
+	f1base := Apply(Blame{}, tparse(diff1), c1base)
 	f2branch := applyOneParent(f1base, tparse(diff2), c2branch)
 	f3master := applyOneParent(f1base, tparse(diff3), c3master)
-	f4merge := Apply([]Blame{f3master, f2branch}, tparse(diff4), c4merge)
+	f4merge := ApplyMerge(
+		[]Blame{f3master, f2branch},
+		tparseDiffs(mergeDiff1, mergeDiff2),
+		c4merge)
 
 	want := Blame{
 		Lines: []Line{
@@ -256,7 +286,9 @@ index 0bb73a0,7a73855..e5f72e3
 	assertEqualFiles(t, f4merge, want)
 }
 
-func TestMerge3MultipleParents(t *testing.T) {
+// data source
+// testdata/merge_multiparents
+func TestMerge2Multiparents(t *testing.T) {
 	diff1base := `diff --git a/a.go b/a.go
 new file mode 100644
 index 0000000..f2c18b2
@@ -307,22 +339,52 @@ index f2c18b2..b702c0b 100644
 	i
 +3`
 
-	diff5merge := `diff --combined a.go
-index b702c0b,5886731,9102991..7570414
+	mergeDiff1 := `diff --git a/a.go b/a.go
+index b702c0b..7570414 100644
 --- a/a.go
 +++ b/a.go
-@@@@ -1,8 -1,9 -1,9 +1,10 @@@@
-+ +1
-   q
-   w
-   e
-   r
-   t
-++ 2
-   y
-	--u
-   i
-	++3`
+@@ -1,8 +1,10 @@
++1
+ q
+ w
+ e
+ r
+ t
++2
+ y
+ i
+ 3`
+
+	mergeDiff2 := `diff --git a/a.go b/a.go
+index 5886731..7570414 100644
+--- a/a.go
++++ b/a.go
+@@ -4,6 +4,7 @@ w
+ e
+ r
+ t
++2
+ y
+-u
+ i
++3`
+
+	mergeDiff3 := `diff --git a/a.go b/a.go
+index 9102991..7570414 100644
+--- a/a.go
++++ b/a.go
+@@ -1,3 +1,4 @@
++1
+ q
+ w
+ e
+@@ -5,5 +6,5 @@ r
+ t
+ 2
+ y
+-u
+ i
++3`
 
 	c1base := "c1base"
 	c2a := "c2a"
@@ -330,11 +392,14 @@ index b702c0b,5886731,9102991..7570414
 	c4m := "c4m"
 	c5merge := "c5merge"
 
-	f1base := Apply(nil, tparse(diff1base), c1base)
+	f1base := Apply(Blame{}, tparse(diff1base), c1base)
 	f2a := applyOneParent(f1base, tparse(diff2a), c2a)
 	f3b := applyOneParent(f1base, tparse(diff3b), c3b)
 	f4m := applyOneParent(f1base, tparse(diff4m), c4m)
-	f5merge := Apply([]Blame{f4m, f2a, f3b}, tparse(diff5merge), c5merge)
+	f5merge := ApplyMerge(
+		[]Blame{f4m, f2a, f3b},
+		tparseDiffs(mergeDiff1, mergeDiff2, mergeDiff3),
+		c5merge)
 
 	want := Blame{
 		Lines: []Line{

@@ -37,7 +37,7 @@ index 43f9419..1671209 100644
 func TestApplyBasic1(t *testing.T) {
 	diff := Parse([]byte(basicDiff1))
 	c1 := "c1"
-	f2 := Apply(nil, diff, c1)
+	f2 := Apply(Blame{}, diff, c1)
 
 	want := Blame{
 		Lines: []Line{
@@ -60,7 +60,7 @@ func TestApplyBasic2Regular(t *testing.T) {
 	c2 := "c2"
 
 	diff := Parse([]byte(basicDiff1))
-	f := Apply(nil, diff, c1)
+	f := Apply(Blame{}, diff, c1)
 	diff = Parse([]byte(basicDiff2))
 	f = applyOneParent(f, diff, c2)
 
