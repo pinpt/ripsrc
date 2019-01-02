@@ -13,6 +13,26 @@ import (
 
 func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error) {
 	commit := s.commitMeta[blame.Commit]
+	// check that files are included in both
+	files := map[string]bool{}
+	for _, cf := range commit.Files {
+		if cf.Renamed {
+			files[cf.RenamedTo] = true
+		}
+	}
+	for p := range blame.Files {
+		files[p] = true
+	}
+	for p := range files {
+		// TODO: double check why
+		//if _, ok := commit.Files[p]; !ok {
+		//	panic(fmt.Errorf("File was in blame, but not stats output commit:%v path:%v", commit.SHA, p))
+		//}
+		if _, ok := blame.Files[p]; !ok {
+			panic(fmt.Errorf("File was in stats output, but not in blame commit:%v path:%v", commit.SHA, p))
+		}
+	}
+
 	for filePath, blf := range blame.Files {
 		if filePath == "" {
 			fmt.Printf("empty file path, commit %v", commit.SHA)

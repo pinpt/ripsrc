@@ -156,7 +156,7 @@ func (s *Processor) Run(res chan Commit) error {
 func (s *Processor) gitLog() (io.ReadCloser, error) {
 	args := []string{
 		"log",
-		"-c",
+		//"-c",
 		"--raw",
 		"--reverse",
 		"--numstat",

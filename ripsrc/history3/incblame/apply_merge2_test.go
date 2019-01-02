@@ -66,13 +66,13 @@ index 4cd4b38..904d55b 100644
 	c3master := "c3master"
 	c4merge := "c4merge"
 
-	f1base := Apply(Blame{}, tparse(diff1), c1base)
-	f2branch := applyOneParent(f1base, tparse(diff2), c2branch)
-	f3master := applyOneParent(f1base, tparse(diff3), c3master)
+	f1base := Apply(Blame{}, tparse(diff1), c1base, "")
+	f2branch := Apply(f1base, tparse(diff2), c2branch, "")
+	f3master := Apply(f1base, tparse(diff3), c3master, "")
 	f4merge := ApplyMerge(
 		[]Blame{f3master, f2branch},
 		tparseDiffs(mergeDiff1, mergeDiff2),
-		c4merge)
+		c4merge, "")
 
 	want := Blame{
 		Lines: []Line{
@@ -234,13 +234,13 @@ index 7a73855..e5f72e3 100644
 	c3master := "c3master"
 	c4merge := "c4merge"
 
-	f1base := Apply(Blame{}, tparse(diff1), c1base)
-	f2branch := applyOneParent(f1base, tparse(diff2), c2branch)
-	f3master := applyOneParent(f1base, tparse(diff3), c3master)
+	f1base := Apply(Blame{}, tparse(diff1), c1base, "")
+	f2branch := Apply(f1base, tparse(diff2), c2branch, "")
+	f3master := Apply(f1base, tparse(diff3), c3master, "")
 	f4merge := ApplyMerge(
 		[]Blame{f3master, f2branch},
 		tparseDiffs(mergeDiff1, mergeDiff2),
-		c4merge)
+		c4merge, "")
 
 	want := Blame{
 		Lines: []Line{
@@ -392,14 +392,14 @@ index 9102991..7570414 100644
 	c4m := "c4m"
 	c5merge := "c5merge"
 
-	f1base := Apply(Blame{}, tparse(diff1base), c1base)
-	f2a := applyOneParent(f1base, tparse(diff2a), c2a)
-	f3b := applyOneParent(f1base, tparse(diff3b), c3b)
-	f4m := applyOneParent(f1base, tparse(diff4m), c4m)
+	f1base := Apply(Blame{}, tparse(diff1base), c1base, "")
+	f2a := Apply(f1base, tparse(diff2a), c2a, "")
+	f3b := Apply(f1base, tparse(diff3b), c3b, "")
+	f4m := Apply(f1base, tparse(diff4m), c4m, "")
 	f5merge := ApplyMerge(
 		[]Blame{f4m, f2a, f3b},
 		tparseDiffs(mergeDiff1, mergeDiff2, mergeDiff3),
-		c5merge)
+		c5merge, "")
 
 	want := Blame{
 		Lines: []Line{

@@ -173,9 +173,9 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 		}
 		var blame incblame.Blame
 		if len(parents) == 0 {
-			blame = incblame.Apply(incblame.Blame{}, diff, commit.Hash)
+			blame = incblame.Apply(incblame.Blame{}, diff, commit.Hash, diff.PathOrPrev())
 		} else {
-			blame = incblame.Apply(parents[0], diff, commit.Hash)
+			blame = incblame.Apply(parents[0], diff, commit.Hash, diff.PathOrPrev())
 		}
 
 		s.repoSave(commit.Hash, diff.Path, &blame)
@@ -314,7 +314,7 @@ EACHFILE:
 			}
 			diffs2 = append(diffs2, *ob)
 		}
-		blame := incblame.ApplyMerge(parents, diffs2, commitHash)
+		blame := incblame.ApplyMerge(parents, diffs2, commitHash, k)
 		s.repoSave(commitHash, k, &blame)
 		res.Files[k] = &blame
 	}

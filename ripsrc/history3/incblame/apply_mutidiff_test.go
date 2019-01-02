@@ -68,8 +68,8 @@ index 0eb2edb..4422a7d 100644
 func TestMultiDiff(t *testing.T) {
 	c1 := "c1"
 	c2 := "c2"
-	f := Apply(Blame{}, Parse([]byte(multiDiffA1)), c1)
-	f = applyOneParent(f, Parse([]byte(multiDiffA2)), c2)
+	f := Apply(Blame{}, Parse([]byte(multiDiffA1)), c1, "")
+	f = Apply(f, Parse([]byte(multiDiffA2)), c2, "")
 
 	want := Blame{
 		Lines: []Line{

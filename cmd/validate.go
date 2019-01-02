@@ -24,6 +24,7 @@ var validateIncBlameCmd = &cobra.Command{
 			go func() {
 				for r := range res {
 					fmt.Println("Checking commit:", r.Commit)
+
 					for p, bl1 := range r.Files {
 						fmt.Println("Checking file:", r.Commit, p)
 						if len(bl1.Lines) == 0 {

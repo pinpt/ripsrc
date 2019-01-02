@@ -65,22 +65,25 @@ func (f Blame) Eq(f2 *Blame) bool {
 	return true
 }
 
-func Apply(file Blame, diff Diff, commit string) Blame {
-	return applyOneParent(file, diff, commit)
-}
+func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
+	rerr := func(err error) {
+		panic(fmt.Errorf("commit:%v file:%v %v", commit, fileForDebug, err))
+	}
 
-// TODO: remove and use wrapper directly
-func applyOneParent(file Blame, diff Diff, commit string) Blame {
 	res := make([]Line, len(file.Lines))
 	copy(res, file.Lines)
 
 	remLine := func(i int) {
 		if i > len(res) {
-			panic(fmt.Errorf("trying to remove line which is not in blame, commit %v line %v blame %v", commit, i, file))
+			rerr(fmt.Errorf("trying to remove line which is not in blame, line %v blame %v", i, file))
 		}
 		res = append(res[:i], res[i+1:]...)
 	}
 	addLine := func(i int, data []byte) {
+		if i > len(res) {
+			rerr(fmt.Errorf("trying to add line at index %v, which is not in blame blame %v", i, file))
+		}
+
 		temp := []Line{}
 		temp = append(temp, res[:i]...)
 		temp = append(temp, Line{Line: data, Commit: commit})
@@ -98,7 +101,7 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 
 	for _, h := range diff.Hunks {
 		if len(h.Locations) == 0 {
-			panic(fmt.Errorf("no location in diff hunk %+v", h))
+			rerr(fmt.Errorf("no location in diff hunk %+v", h))
 		}
 
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
@@ -112,7 +115,7 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 		for scanner.Scan() {
 			b := scanner.Bytes()
 			if len(b) == 0 {
-				panic(fmt.Errorf("could not process patch line, it was empty, h.Data %v", string(h.Data)))
+				rerr(fmt.Errorf("could not process patch line, it was empty, h.Data %v", string(h.Data)))
 			}
 			b = copyBytes(b)
 
@@ -133,14 +136,14 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 					// can ignore this, we do not case about end of file newline
 					continue
 				}
-				panic(fmt.Errorf("invalid patch line, starts with \\ but not 'No newline at end of file', line '%s'", b))
+				rerr(fmt.Errorf("invalid patch line, starts with \\ but not 'No newline at end of file', line '%s'", b))
 
 			default:
-				panic(fmt.Errorf("invalid patch prefix, line %s prefix %v commit %v", b, op, commit))
+				rerr(fmt.Errorf("invalid patch prefix, line %s prefix %v commit %v", b, op, commit))
 			}
 		}
 		if err := scanner.Err(); err != nil {
-			panic(err)
+			rerr(err)
 		}
 	}
 

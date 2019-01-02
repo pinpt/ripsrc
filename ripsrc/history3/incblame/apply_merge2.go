@@ -3,7 +3,7 @@ package incblame
 import "fmt"
 
 // ApplyMerge creates a new blame data for file based on parent blame data and merge diff for each parent (generated using git -m option)
-func ApplyMerge(parents []Blame, diffs []Diff, commit string) Blame {
+func ApplyMerge(parents []Blame, diffs []Diff, commit string, fileForDebug string) Blame {
 	//fmt.Println("apply")
 	//for i, p := range parents {
 	//	fmt.Println("parent", i)
@@ -13,7 +13,7 @@ func ApplyMerge(parents []Blame, diffs []Diff, commit string) Blame {
 	// different view for each parent
 	var cand []Blame
 	for i, p := range parents {
-		res := applyOneParent(p, diffs[i], commit)
+		res := Apply(p, diffs[i], commit, fileForDebug)
 		cand = append(cand, res)
 	}
 	// check that cand lines are eq

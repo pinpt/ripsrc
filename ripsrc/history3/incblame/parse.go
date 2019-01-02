@@ -13,6 +13,13 @@ type Diff struct {
 	Hunks    []Hunk
 }
 
+func (d Diff) PathOrPrev() string {
+	if d.Path != "" {
+		return d.Path
+	}
+	return d.PathPrev
+}
+
 // Hunk is a part of the diff describing change to a part of file.
 type Hunk struct {
 	Locations []HunkLocation
