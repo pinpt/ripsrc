@@ -6,13 +6,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 )
 
 type Processor struct {
@@ -115,6 +116,7 @@ func (s *Processor) RunMap() (map[string]Commit, error) {
 func (s *Processor) Run(res chan Commit) error {
 	defer close(res)
 	r, err := s.gitLog()
+	defer r.Close()
 	if err != nil {
 		return err
 	}
@@ -151,8 +153,7 @@ func (s *Processor) Run(res chan Commit) error {
 	return nil
 }
 
-func (s *Processor) gitLog() (io.Reader, error) {
-
+func (s *Processor) gitLog() (io.ReadCloser, error) {
 	args := []string{
 		"log",
 		"-c",
@@ -162,16 +163,7 @@ func (s *Processor) gitLog() (io.Reader, error) {
 		"--pretty=format:!SHA: %H%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
 	}
 
-	ctx := context.Background()
-	c := exec.CommandContext(ctx, s.gitCommand, args...)
-	stdout := bytes.NewBuffer(nil)
-	c.Dir = s.repoDir
-	c.Stderr = os.Stderr
-	c.Stdout = stdout
-	if err := c.Run(); err != nil {
-		return nil, fmt.Errorf("failed executing git log -p %v", err)
-	}
-	return stdout, nil
+	return gitexec.ExecWithCache(context.Background(), s.gitCommand, s.repoDir, args)
 }
 
 var (

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/pinpt/ripsrc/ripsrc2"
+	"github.com/pinpt/ripsrc/ripsrc"
 	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 )
@@ -133,6 +133,8 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	RegisterIncBlame()
+
 	rootCmd.Flags().String("include", "", "include filter as a regular expression")
 	rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
 	rootCmd.Flags().String("sha", "", "start streaming from sha")

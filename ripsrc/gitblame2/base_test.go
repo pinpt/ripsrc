@@ -1,4 +1,4 @@
-package tests
+package gitblame2
 
 import (
 	"archive/zip"
@@ -6,11 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
-
-	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
-	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
 
 type Test struct {
@@ -26,8 +22,7 @@ func NewTest(t *testing.T, repoName string) *Test {
 	return s
 }
 
-func (s *Test) Run() []process.Result {
-	t := s.t
+func (s *Test) Run(hash, filePath string) (Result, error) {
 	dir, err := ioutil.TempDir("", "ripsrc-test-")
 	if err != nil {
 		panic(err)
@@ -42,12 +37,7 @@ func (s *Test) Run() []process.Result {
 
 	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
 
-	p := process.New(process.Opts{RepoDir: repoDir, DisableCache: true})
-	res, err := p.RunGetAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res
+	return Run(repoDir, hash, filePath)
 }
 
 func firstDir(loc string) string {
@@ -56,10 +46,6 @@ func firstDir(loc string) string {
 		panic(err)
 	}
 	for _, entry := range entries {
-		n := entry.Name()
-		if n[0] == '_' || n[0] == '.' {
-			continue
-		}
 		if entry.IsDir() {
 			return entry.Name()
 		}
@@ -103,35 +89,4 @@ func unzip(archive, dir string) error {
 		}
 	}
 	return nil
-}
-
-func assertResult(t *testing.T, want, got []process.Result) {
-	t.Helper()
-	if len(want) != len(got) {
-		t.Fatalf("invalid number of entries %v, got\n%v", len(got), got)
-	}
-	for i := range want {
-		w := want[i]
-		g := got[i]
-		if w.Commit != g.Commit {
-			t.Fatalf("invalid commit hash %v at pos %v", w.Commit, i)
-		}
-		commit := w.Commit
-		if len(w.Files) != len(g.Files) {
-			t.Fatalf("invalid number of entries %v for commit %v, got\n%v", len(w.Files), commit, g.Files)
-		}
-		for filePath := range w.Files {
-			if !reflect.DeepEqual(w.Files[filePath], g.Files[filePath]) {
-				t.Fatalf("invalid patch for file %v commit %v, got\n%v\nwanted\n%v", filePath, commit, g.Files[filePath], w.Files[filePath])
-			}
-		}
-	}
-}
-
-func file(hash string, lines ...incblame.Line) *incblame.Blame {
-	return &incblame.Blame{Commit: hash, Lines: lines}
-}
-
-func line(buf string, commit string) incblame.Line {
-	return incblame.Line{Line: []byte(buf), Commit: commit}
 }

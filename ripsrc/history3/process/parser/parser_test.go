@@ -116,6 +116,66 @@ index 7898192..e61ef7b 100644
 	assertEqualCommits(t, got, want)
 }
 
+func TestNoChangesInMerge(t *testing.T) {
+
+	// output of
+	// git log -p -c --reverse --no-abbrev --pretty='format:!Hash: %H%n!Parents: %P'
+
+	data := `!Hash: 7b2426009c16e103bed4aaf0ca732f0c3f376026
+!Parents: 
+diff --git a/a.txt b/a.txt
+new file mode 100644
+index 0000000..7898192
+--- /dev/null
++++ b/a.txt
+@@ -0,0 +1 @@
++a
+
+!Hash: 80775358d2088bb31deedf7d18173ad916b025d3
+!Parents: 2531fb0b42d18f1dd97e6b1a303f05bf05aef83e 6aac6cbfcdae43f0ebd2351b59794e37e6bd6364
+
+!Hash: 80775358d2088bb31deedf7d18173ad916b025d3
+!Parents: 2531fb0b42d18f1dd97e6b1a303f05bf05aef83e 6aac6cbfcdae43f0ebd2351b59794e37e6bd6364
+`
+
+	p := New(strings.NewReader(data))
+	got, err := p.RunGetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []Commit{
+		{
+			Hash:    "7b2426009c16e103bed4aaf0ca732f0c3f376026",
+			Parents: nil,
+			Changes: []Change{
+				{
+					Diff: tb(`diff --git a/a.txt b/a.txt
+new file mode 100644
+index 0000000..7898192
+--- /dev/null
++++ b/a.txt
+@@ -0,0 +1 @@
++a
+`),
+				},
+			},
+		},
+		{
+			Hash:    "80775358d2088bb31deedf7d18173ad916b025d3",
+			Parents: []string{"2531fb0b42d18f1dd97e6b1a303f05bf05aef83e", "6aac6cbfcdae43f0ebd2351b59794e37e6bd6364"},
+			Changes: nil,
+		},
+		{
+			Hash:    "80775358d2088bb31deedf7d18173ad916b025d3",
+			Parents: []string{"2531fb0b42d18f1dd97e6b1a303f05bf05aef83e", "6aac6cbfcdae43f0ebd2351b59794e37e6bd6364"},
+			Changes: nil,
+		},
+	}
+
+	assertEqualCommits(t, got, want)
+}
+
 func tb(s string) []byte {
 	return []byte(s)
 }

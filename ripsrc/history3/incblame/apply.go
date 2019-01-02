@@ -86,11 +86,14 @@ func applyMerge(parents []Blame, diff Diff, commit string) Blame {
 
 		for scanner.Scan() {
 			b := scanner.Bytes()
+			b = copyBytes(b)
+
 			if len(b) == 0 {
-				panic(fmt.Errorf("could not process patch line, it was empty, h.Data %v", string(h.Data)))
+				panic(fmt.Errorf("commit %v could not process patch line, it was empty, h.Data %v", commit, string(h.Data)))
 			}
+
 			if len(b) < len(parents) {
-				panic(fmt.Errorf("could not process patch line, len < len(parentsy, h.Data %v", string(h.Data)))
+				panic(fmt.Errorf("commit %v could not process patch line, len(b) < len(parents) %v < %v, h.Data %v", commit, len(b), len(parents), string(h.Data)))
 			}
 
 			ops := b[0:lenp]
@@ -116,7 +119,7 @@ func applyMerge(parents []Blame, diff Diff, commit string) Blame {
 					offsets[i]--
 				case '+':
 				default:
-					panic(fmt.Errorf("offsets invalid patch prefix, line '%s' prefix '%v' '%s'", b, v, string(v)))
+					panic(fmt.Errorf("invalid patch line prefix, line '%s' prefix '%v' '%s'", b, v, string(v)))
 				}
 			}
 
@@ -165,6 +168,9 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 	copy(res, file.Lines)
 
 	remLine := func(i int) {
+		if i > len(res) {
+			panic(fmt.Errorf("trying to remove line which is not in blame, commit %v line %v blame %v", commit, i, file))
+		}
 		res = append(res[:i], res[i+1:]...)
 	}
 	addLine := func(i int, data []byte) {
@@ -184,6 +190,9 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 	})
 
 	for _, h := range diff.Hunks {
+		if len(h.Locations) == 0 {
+			panic(fmt.Errorf("no location in diff hunk %+v", h))
+		}
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
 		i := h.Locations[0].Offset - 1
 		if i == -1 {
@@ -195,6 +204,8 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 			if len(b) == 0 {
 				panic(fmt.Errorf("could not process patch line, it was empty, h.Data %v", string(h.Data)))
 			}
+			b = copyBytes(b)
+
 			op := b[0]
 			data := b[1:]
 			switch op {
@@ -207,8 +218,15 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 			case '+':
 				addLine(i, data)
 				i++
+			case 92:
+				if string(b) == "\\ No newline at end of file" {
+					// can ignore this, we do not case about end of file newline
+					continue
+				}
+				panic(fmt.Errorf("invalid patch line, starts with \\ but not 'No newline at end of file', line '%s'", b))
+
 			default:
-				panic(fmt.Errorf("invalid patch prefix, line %s prefix %v", b, op))
+				panic(fmt.Errorf("invalid patch prefix, line %s prefix %v commit %v", b, op, commit))
 			}
 		}
 		if err := scanner.Err(); err != nil {
@@ -217,6 +235,12 @@ func applyOneParent(file Blame, diff Diff, commit string) Blame {
 	}
 
 	return Blame{Lines: res, Commit: commit}
+}
+
+func copyBytes(b []byte) []byte {
+	res := make([]byte, len(b))
+	copy(res, b)
+	return res
 }
 
 func copyLines(lines []Line) (res []Line) {

@@ -14,12 +14,33 @@ func startsWith(b []byte, prefix string) bool {
 	return string(b[:len(prefix)]) == prefix
 }
 
-func parseContext(b []byte) (res []HunkLocation) {
+func parseContext(b0 []byte) (res []HunkLocation) {
 	rerr := func(msg string) {
-		panic(fmt.Errorf("invalid diff context format %v %v", string(b), msg))
+		panic(fmt.Errorf("invalid diff context format %v %v", string(b0), msg))
 	}
-	i := bytes.LastIndexByte(b, '@')
-	b = b[0:i] // remove section heading
+	atc := 0
+	for _, b := range b0 {
+		if b == '@' {
+			atc++
+		} else {
+			break
+		}
+	}
+	endInd := 0
+	c := 0
+	for i, b := range b0 {
+		if b == '@' {
+			c++
+		}
+		if c == atc*2 {
+			endInd = i
+			break
+		}
+	}
+	if endInd == 0 {
+		rerr("endInd == 0")
+	}
+	b := b0[0:endInd] // remove section heading
 	b = bytes.Trim(b, "@ ")
 	parts := bytes.Split(b, []byte(" "))
 	for _, p := range parts {

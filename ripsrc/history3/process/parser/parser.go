@@ -58,7 +58,14 @@ func (s *Parser) line(b []byte) {
 	case stParentsNext:
 		s.parseParents(b)
 	case stDiffNext:
-		s.startDiff(b)
+		if s.isDiffStart(b) {
+			s.startDiff(b)
+		} else if string(b) == "" {
+			s.endCommit()
+			s.state = stCommitNext
+		} else {
+			panic(fmt.Errorf("expecting diff start or empty string for empty diff, got %s", b))
+		}
 	case stInDiff:
 		if len(b) == 0 {
 			s.endCommit()
@@ -90,7 +97,9 @@ func (s *Parser) endDiff() {
 }
 
 func (s *Parser) endCommit() {
-	s.endDiff()
+	if s.state == stInDiff {
+		s.endDiff()
+	}
 	s.state = stCommitNext
 	s.res <- s.commit
 }

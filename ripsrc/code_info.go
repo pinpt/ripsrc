@@ -24,6 +24,8 @@ func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 
 		f, ok := commit.Files[filePath]
 		if !ok {
+			fmt.Printf("Changed file was not found in stats log entry, file %v commit %v\n", r.Filename, commit.SHA)
+			continue
 			panic(fmt.Errorf("Changed file was not found in stats log entry, file %v commit %v", r.Filename, commit.SHA))
 		}
 		r.Status = f.Status

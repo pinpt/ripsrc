@@ -7,7 +7,7 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
 
-func TestMergeBasic(t *testing.T) {
+func TestMergeBasic1(t *testing.T) {
 	test := NewTest(t, "merge_basic")
 	got := test.Run()
 

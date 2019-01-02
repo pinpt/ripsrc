@@ -92,7 +92,7 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) 
 		done <- true
 	}()
 
-	gitProcessor := process.New(repoDir)
+	gitProcessor := process.New(process.Opts{RepoDir: repoDir})
 	err = gitProcessor.Run(gitRes)
 	if err != nil {
 		return err

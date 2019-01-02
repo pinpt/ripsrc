@@ -45,10 +45,10 @@ func Parse(content []byte) (res Diff) {
 }
 
 const (
-	stLookingForPrevName = "stLookingForPrevName"
-	stNextIsCurrName     = "stNextIsCurrName"
-	stNextIsContext      = "stNextIsContext"
-	stInPatchLines       = "stInPatchLines"
+	stParsingPreMeta = "stParsingPreMeta"
+	stNextIsCurrName = "stNextIsCurrName"
+	stNextIsContext  = "stNextIsContext"
+	stInPatchLines   = "stInPatchLines"
 )
 
 type parser struct {
@@ -57,17 +57,25 @@ type parser struct {
 
 	diff Diff
 
+	preMeta         map[string]string
 	currentContexts []HunkLocation
 	currentLines    []byte
 
 	res []Hunk
 
+	wantedMeta []string
+
 	//endNl bool // does content ends with newline?
 }
+
+const metaRenameFrom = "rename from"
+const metaRenameTo = "rename to"
+const metaNewFile = "new file"
 
 func newParser(content []byte) *parser {
 	p := &parser{}
 	p.content = content
+	p.wantedMeta = []string{metaRenameFrom, metaRenameTo, metaNewFile}
 	return p
 }
 
@@ -79,7 +87,8 @@ func (p *parser) Parse() (res Diff) {
 	//		p.endNl = true
 	//	}
 
-	p.state = stLookingForPrevName
+	p.state = stParsingPreMeta
+	p.preMeta = map[string]string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(p.content))
 	for scanner.Scan() {
@@ -89,17 +98,38 @@ func (p *parser) Parse() (res Diff) {
 		panic(err)
 	}
 	p.finishHunk()
+
+	if p.preMeta[metaNewFile] != "" {
+		p.diff.PathPrev = ""
+	}
+
+	if p.preMeta[metaRenameFrom] != "" {
+		p.diff.PathPrev = p.preMeta[metaRenameFrom]
+		if p.preMeta[metaRenameTo] == "" {
+			panic("has rename from, but not rename to")
+		}
+		p.diff.Path = p.preMeta[metaRenameTo]
+	}
+
 	res = p.diff
 	res.Hunks = p.res
+
 	return
 }
 
 func (p *parser) line(b []byte) {
 	switch p.state {
-	case stLookingForPrevName:
-		if startsWith(b, "---") {
+	case stParsingPreMeta:
+		if !startsWith(b, "---") {
+			for _, s := range p.wantedMeta {
+				if startsWith(b, s+" ") {
+					p.preMeta[s] = string(b[len(s)+1:])
+				}
+			}
+		} else {
 			p.diff.PathPrev = extractName(b)
 			p.state = stNextIsCurrName
+
 		}
 	case stNextIsCurrName:
 		p.diff.Path = extractName(b)
@@ -134,10 +164,14 @@ func extractName(b []byte) string {
 }
 
 func (p *parser) finishHunk() {
-	h := Hunk{}
-	h.Locations = p.currentContexts
-	h.Data = p.currentLines
-	p.res = append(p.res, h)
+	if len(p.currentContexts) != 0 {
+		h := Hunk{}
+		h.Locations = p.currentContexts
+		h.Data = p.currentLines
+
+		p.res = append(p.res, h)
+
+	}
 
 	p.currentContexts = nil
 	p.currentLines = nil
