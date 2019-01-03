@@ -286,7 +286,7 @@ EACHFILE:
 				parentHash := parentHashes[i]
 				parentBlame, ok := s.repo[parentHash][k]
 				if !ok {
-					panic("parent blame not found")
+					panic(fmt.Errorf("merge: no change for file recorded, but parent does not contain blame information file:%v merge:%v parent:%v", k, commitHash, parentHash))
 				}
 				parents = append(parents, *parentBlame)
 				continue
