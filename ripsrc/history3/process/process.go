@@ -209,6 +209,7 @@ func (s *Process) processMergeCommit(parts []parser.Commit) (res Result, _ error
 	commitHash := parts[0].Hash
 	parentHashes := parts[0].Parents
 	parentCount := len(parentHashes)
+
 	res.Commit = commitHash
 	res.Files = map[string]*incblame.Blame{}
 
@@ -318,59 +319,57 @@ EACHFILE:
 		s.repoSave(commitHash, k, &blame)
 		res.Files[k] = &blame
 	}
-	/*
-		// for merge commits we need to use the most updated copy
+	// for merge commits we need to use the most updated copy
 
-		// get a list of all files in all parents
-		files := map[string]bool{}
-		for _, p := range commit.Parents {
-			for f := range s.repo[p] {
-				files[f] = true
+	// get a list of all files in all parents
+	files = map[string]bool{}
+	for _, p := range parentHashes {
+		for f := range s.repo[p] {
+			files[f] = true
+		}
+	}
+
+	for f := range files {
+		// already added above
+		if _, ok := s.repo[commitHash][f]; ok {
+			continue
+		}
+
+		var candidates []*incblame.Blame
+		for _, p := range parentHashes {
+			if b, ok := s.repo[p][f]; ok {
+				candidates = append(candidates, b)
 			}
 		}
 
-		for f := range files {
-			// was in the diff changes, nothing to do
-			if _, ok := res.Files[f]; ok {
-				continue
-			}
-
-			var candidates []*incblame.Blame
-			for _, p := range commit.Parents {
-				if b, ok := s.repo[p][f]; ok {
-					candidates = append(candidates, b)
-				}
-			}
-
-			// only one branch has the file
-			if len(candidates) == 1 {
-				// copy reference
-				s.repoSave(commit.Hash, f, candidates[0])
-				continue
-			}
-
-			if len(candidates) == 0 {
-				panic("no file candidates")
-			}
-
-			// find common parent commit for all
-			root := s.commitParents.LastCommonParent(commit.Parents)
-			var res *incblame.Blame
-			for _, c := range candidates {
-				// unchanged
-				if c.Commit == root {
-					continue
-				}
-				res = c
-			}
-			if res == nil {
-				// all are unchanged
-				res = s.repo[root][f]
-			}
-			s.repoSave(commit.Hash, f, res)
-
+		// only one branch has the file
+		if len(candidates) == 1 {
+			// copy reference
+			s.repoSave(commitHash, f, candidates[0])
+			continue
 		}
-	*/
+
+		if len(candidates) == 0 {
+			panic("no file candidates")
+		}
+
+		// find common parent commit for all
+		root := s.commitParents.LastCommonParent(parentHashes)
+		var res *incblame.Blame
+		for _, c := range candidates {
+			// unchanged
+			if c.Commit == root {
+				continue
+			}
+			res = c
+		}
+		if res == nil {
+			// all are unchanged
+			res = s.repo[root][f]
+		}
+		s.repoSave(commitHash, f, res)
+
+	}
 	return
 }
 
