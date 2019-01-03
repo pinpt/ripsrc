@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/pinpt/ripsrc/ripsrc/history3/process/parentsp"
+
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/graph"
@@ -20,7 +22,8 @@ type Process struct {
 	commitParents graph.Graph
 
 	mergePartsCommit string
-	mergeParts       []parser.Commit
+	// map[parent_diffed]parser.Commit
+	mergeParts map[string]parser.Commit
 }
 
 type Opts struct {
@@ -46,7 +49,12 @@ func (s *Process) Run(resChan chan Result) error {
 		close(resChan)
 	}()
 
-	r, err := s.gitLog()
+	err := s.retrieveParents()
+	if err != nil {
+		return err
+	}
+
+	r, err := s.gitLogPatches()
 	if err != nil {
 		return err
 	}
@@ -62,9 +70,8 @@ func (s *Process) Run(resChan chan Result) error {
 		}
 	}()
 
-	s.commitParents = graph.Graph{}
-
 	for commit := range commits {
+		commit.Parents = s.commitParents[commit.Hash]
 		s.processCommit(resChan, commit)
 	}
 
@@ -75,11 +82,28 @@ func (s *Process) Run(resChan chan Result) error {
 	return nil
 }
 
+func (s *Process) retrieveParents() error {
+	r, err := s.gitLogParents()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	pp := parentsp.New(r)
+	res, err := pp.Run()
+	if err != nil {
+		return err
+	}
+
+	s.commitParents = graph.Graph(res)
+	return nil
+}
+
 func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
 	if len(s.mergeParts) > 0 {
 		// continuing with merge
 		if s.mergePartsCommit == commit.Hash {
-			s.mergeParts = append(s.mergeParts, commit)
+			s.mergeParts[commit.MergeDiffFrom] = commit
 			// still same
 			return
 		} else {
@@ -91,9 +115,9 @@ func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
 	}
 
 	if len(commit.Parents) > 1 { // this is a merge
-		s.commitParents[commit.Hash] = commit.Parents
 		s.mergePartsCommit = commit.Hash
-		s.mergeParts = append(s.mergeParts, commit)
+		s.mergeParts = map[string]parser.Commit{}
+		s.mergeParts[commit.MergeDiffFrom] = commit
 		return
 	}
 
@@ -105,7 +129,7 @@ func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
 }
 
 func (s *Process) processGotMergeParts(resChan chan Result) {
-	res, err := s.processMergeCommit(s.mergeParts)
+	res, err := s.processMergeCommit(s.mergePartsCommit, s.mergeParts)
 	if err != nil {
 		panic(err)
 	}
@@ -114,8 +138,6 @@ func (s *Process) processGotMergeParts(resChan chan Result) {
 }
 
 func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ error) {
-
-	s.commitParents[commit.Hash] = commit.Parents
 
 	res.Commit = commit.Hash
 	res.Files = map[string]*incblame.Blame{}
@@ -205,9 +227,8 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 
 const deletedPrefix = "@@@del@@@"
 
-func (s *Process) processMergeCommit(parts []parser.Commit) (res Result, _ error) {
-	commitHash := parts[0].Hash
-	parentHashes := parts[0].Parents
+func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.Commit) (res Result, _ error) {
+	parentHashes := s.commitParents[commitHash]
 	parentCount := len(parentHashes)
 
 	res.Commit = commitHash
@@ -216,7 +237,12 @@ func (s *Process) processMergeCommit(parts []parser.Commit) (res Result, _ error
 	// parse and organize all diffs for access
 	diffs := map[string][]*incblame.Diff{}
 
-	for parInd, part := range parts {
+	hashToParOrd := map[string]int{}
+	for i, h := range parentHashes {
+		hashToParOrd[h] = i
+	}
+
+	for parHash, part := range parts {
 		for _, ch := range part.Changes {
 			diff := incblame.Parse(ch.Diff)
 			key := ""
@@ -230,6 +256,7 @@ func (s *Process) processMergeCommit(parts []parser.Commit) (res Result, _ error
 				par = make([]*incblame.Diff, parentCount, parentCount)
 				diffs[key] = par
 			}
+			parInd := hashToParOrd[parHash]
 			par[parInd] = &diff
 		}
 	}
@@ -395,14 +422,31 @@ func (s *Process) RunGetAll() (_ []Result, err error) {
 	return res2, err
 }
 
-func (s *Process) gitLog() (io.ReadCloser, error) {
+func (s *Process) gitLogParents() (io.ReadCloser, error) {
+	args := []string{
+		"log",
+		"-m",
+		"--reverse",
+		"--no-abbrev-commit",
+		"--pretty=format:%H@%P",
+	}
+
+	ctx := context.Background()
+	if s.opts.DisableCache {
+
+		return gitexec.Exec(ctx, s.gitCommand, s.opts.RepoDir, args)
+	}
+	return gitexec.ExecWithCache(ctx, s.gitCommand, s.opts.RepoDir, args)
+}
+
+func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 	args := []string{
 		"log",
 		"-p",
 		"-m",
 		"--reverse",
 		"--no-abbrev-commit",
-		"--pretty=format:!Hash: %H%n!Parents: %P",
+		"--pretty=short",
 	}
 
 	ctx := context.Background()

@@ -29,13 +29,17 @@ func assertEqualCommits(t *testing.T, got, want []Commit) {
 	}
 }
 
+// data generated with the following command:
+// git log -p --reverse --no-abbrev --pretty='short' -m
+// using short to show "from" parent for merges, no code for this to show in custom format
+
 func TestBasic(t *testing.T) {
 
-	// output of
-	// git log -p -c --reverse --no-abbrev --pretty='format:!Hash: %H%n!Parents: %P'
+	data := `commit e99cb00954f08c1d33c5935742809868335483bf
+Author: User1 <user1@example.com>
 
-	data := `!Hash: e99cb00954f08c1d33c5935742809868335483bf
-!Parents: 
+    c1
+
 diff --git a/a.txt b/a.txt
 new file mode 100644
 index 0000000..7898192
@@ -51,8 +55,11 @@ index 0000000..6178079
 @@ -0,0 +1 @@
 +b
 
-!Hash: d497eccaf64c229771f471386cf49e4f653a00cb
-!Parents: e99cb00954f08c1d33c5935742809868335483bf
+commit d497eccaf64c229771f471386cf49e4f653a00cb
+Author: User1 <user1@example.com>
+
+    c2
+
 diff --git a/a.txt b/a.txt
 index 7898192..e61ef7b 100644
 --- a/a.txt
@@ -70,8 +77,7 @@ index 7898192..e61ef7b 100644
 
 	want := []Commit{
 		{
-			Hash:    "e99cb00954f08c1d33c5935742809868335483bf",
-			Parents: nil,
+			Hash: "e99cb00954f08c1d33c5935742809868335483bf",
 			Changes: []Change{
 				{
 					Diff: tb(`diff --git a/a.txt b/a.txt
@@ -96,8 +102,7 @@ index 0000000..6178079
 			},
 		},
 		{
-			Hash:    "d497eccaf64c229771f471386cf49e4f653a00cb",
-			Parents: []string{"e99cb00954f08c1d33c5935742809868335483bf"},
+			Hash: "d497eccaf64c229771f471386cf49e4f653a00cb",
 			Changes: []Change{
 				{
 					Diff: tb(`diff --git a/a.txt b/a.txt
@@ -118,24 +123,18 @@ index 7898192..e61ef7b 100644
 
 func TestNoChangesInMerge(t *testing.T) {
 
-	// output of
-	// git log -p -c --reverse --no-abbrev --pretty='format:!Hash: %H%n!Parents: %P'
+	data := `commit 80775358d2088bb31deedf7d18173ad916b025d3
+Merge: 2531fb0b42d18f1dd97e6b1a303f05bf05aef83e 6aac6cbfcdae43f0ebd2351b59794e37e6bd6364
+Author: User1 <user1@example.com>
 
-	data := `!Hash: 7b2426009c16e103bed4aaf0ca732f0c3f376026
-!Parents: 
-diff --git a/a.txt b/a.txt
-new file mode 100644
-index 0000000..7898192
---- /dev/null
-+++ b/a.txt
-@@ -0,0 +1 @@
-+a
+    Merge branch 'b'
 
-!Hash: 80775358d2088bb31deedf7d18173ad916b025d3
-!Parents: 2531fb0b42d18f1dd97e6b1a303f05bf05aef83e 6aac6cbfcdae43f0ebd2351b59794e37e6bd6364
+commit 80775358d2088bb31deedf7d18173ad916b025d3
+Merge: 2531fb0b42d18f1dd97e6b1a303f05bf05aef83e 6aac6cbfcdae43f0ebd2351b59794e37e6bd6364
+Author: User1 <user1@example.com>
 
-!Hash: 80775358d2088bb31deedf7d18173ad916b025d3
-!Parents: 2531fb0b42d18f1dd97e6b1a303f05bf05aef83e 6aac6cbfcdae43f0ebd2351b59794e37e6bd6364
+    Merge branch 'b'
+
 `
 
 	p := New(strings.NewReader(data))
@@ -146,8 +145,43 @@ index 0000000..7898192
 
 	want := []Commit{
 		{
-			Hash:    "7b2426009c16e103bed4aaf0ca732f0c3f376026",
-			Parents: nil,
+			Hash: "80775358d2088bb31deedf7d18173ad916b025d3",
+		},
+		{
+			Hash: "80775358d2088bb31deedf7d18173ad916b025d3",
+		},
+	}
+
+	assertEqualCommits(t, got, want)
+}
+
+func TestMergeFromLine(t *testing.T) {
+
+	data := `commit f82b3491fbf1e4fd5666748efe0b198b82d587be (from b7f8fa5c1794de8c7c36b61ba5e7e41e647ae97a)
+Merge: 2fbc9d8afd98d677074ab2dc77658dbc2988e853 b7f8fa5c1794de8c7c36b61ba5e7e41e647ae97a
+Author: F L <name@name.com>
+
+    Merge branch 'master' into branch
+
+diff --git a/a.txt b/a.txt
+new file mode 100644
+index 0000000..7898192
+--- /dev/null
++++ b/a.txt
+@@ -0,0 +1 @@
++a
+`
+
+	p := New(strings.NewReader(data))
+	got, err := p.RunGetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []Commit{
+		{
+			Hash:          "f82b3491fbf1e4fd5666748efe0b198b82d587be",
+			MergeDiffFrom: "b7f8fa5c1794de8c7c36b61ba5e7e41e647ae97a",
 			Changes: []Change{
 				{
 					Diff: tb(`diff --git a/a.txt b/a.txt
@@ -160,16 +194,6 @@ index 0000000..7898192
 `),
 				},
 			},
-		},
-		{
-			Hash:    "80775358d2088bb31deedf7d18173ad916b025d3",
-			Parents: []string{"2531fb0b42d18f1dd97e6b1a303f05bf05aef83e", "6aac6cbfcdae43f0ebd2351b59794e37e6bd6364"},
-			Changes: nil,
-		},
-		{
-			Hash:    "80775358d2088bb31deedf7d18173ad916b025d3",
-			Parents: []string{"2531fb0b42d18f1dd97e6b1a303f05bf05aef83e", "6aac6cbfcdae43f0ebd2351b59794e37e6bd6364"},
-			Changes: nil,
 		},
 	}
 

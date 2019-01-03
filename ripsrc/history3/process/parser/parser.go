@@ -16,15 +16,44 @@ type Parser struct {
 
 	state state
 	diff  []byte
+
+	msgEmptyLines int
 }
 
 type state string
 
 const stNotStarted = "stNotStarted"
 const stParentsNext = "stParentsNext"
+const stSkipAuthor = "stSkipAuthor"
+const stSkipMessage = "stSkipMessage"
 const stDiffNext = "stDiffNext"
 const stInDiff = "stInDiff"
 const stCommitNext = "stCommitNext"
+
+type Commit struct {
+	Hash          string
+	Parents       []string
+	MergeDiffFrom string
+	Changes       []Change
+}
+
+func (c Commit) String() string {
+	res := []string{}
+	res = append(res, c.Hash)
+	res = append(res, strings.Join(c.Parents, ","))
+	for _, c := range c.Changes {
+		res = append(res, c.String())
+	}
+	return strings.Join(res, "*\n")
+}
+
+type Change struct {
+	Diff []byte
+}
+
+func (c Change) String() string {
+	return string(c.Diff)
+}
 
 func New(r io.Reader) *Parser {
 	p := &Parser{}
@@ -59,15 +88,30 @@ func (s *Parser) Run(res chan Commit) error {
 func (s *Parser) line(b []byte) {
 	switch s.state {
 	case stNotStarted:
-		s.parseCommit(b)
+		s.parseCommitLine(b)
 	case stParentsNext:
-		s.parseParents(b)
+		if startsWith(b, mergePrefix) {
+		} else {
+			s.state = stSkipAuthor
+			s.line(b)
+		}
+	case stSkipAuthor:
+		s.state = stSkipMessage
+		s.msgEmptyLines = 0
+	case stSkipMessage:
+		if len(b) == 0 {
+			s.msgEmptyLines++
+		}
+		if s.msgEmptyLines == 2 {
+			s.state = stDiffNext
+		}
 	case stDiffNext:
 		if s.isDiffStart(b) {
 			s.startDiff(b)
-		} else if string(b) == "" {
+		} else if startsWith(b, "commit ") {
 			s.endCommit()
 			s.state = stCommitNext
+			s.line(b)
 		} else {
 			panic(fmt.Errorf("expecting diff start or empty string for empty diff, got %s", b))
 		}
@@ -82,7 +126,7 @@ func (s *Parser) line(b []byte) {
 			s.diff = append(s.diff, '\n')
 		}
 	case stCommitNext:
-		s.parseCommit(b)
+		s.parseCommitLine(b)
 	default:
 		panic(fmt.Errorf("unknown state %v", s.state))
 	}
@@ -113,28 +157,29 @@ func (s *Parser) isDiffStart(b []byte) bool {
 	return len(b) > 4 && string(b[0:4]) == "diff"
 }
 
-func (s *Parser) parseCommit(b []byte) {
-	prefix := "!Hash: "
+func (s *Parser) parseCommitLine(b []byte) {
+	prefix := "commit "
 	if !startsWith(b, prefix) {
-		panic(fmt.Errorf("no !Hash prefix, line %s", string(b)))
+		panic(fmt.Errorf("no '%v' prefix, line %s", prefix, b))
 	}
+	data := string(b[len(prefix):])
 	c := Commit{}
-	c.Hash = string(b[len(prefix):])
+	if !strings.Contains(data, " ") {
+		c.Hash = data
+	} else {
+		parts := strings.SplitN(data, " ", 2)
+		if len(parts) != 2 {
+			panic(fmt.Errorf("invalid format for commit line %s got len parts %v", b, len(parts)))
+		}
+		c.Hash = parts[0]
+		fromPrefix := "(from "
+		c.MergeDiffFrom = parts[1][len(fromPrefix) : len(parts[1])-1]
+	}
 	s.commit = c
 	s.state = stParentsNext
 }
 
-func (s *Parser) parseParents(b []byte) {
-	prefix := "!Parents: "
-	if !startsWith(b, prefix) {
-		panic(fmt.Errorf("no !Parents prefix, line %s", string(b)))
-	}
-	d := string(b[len(prefix):])
-	if len(d) != 0 {
-		s.commit.Parents = strings.Split(d, " ")
-	}
-	s.state = stDiffNext
-}
+const mergePrefix = "Merge: "
 
 func startsWith(b []byte, prefix string) bool {
 	if len(prefix) > len(b) {
@@ -156,28 +201,4 @@ func (s *Parser) RunGetAll() (_ []Commit, err error) {
 	}
 	<-done
 	return res2, err
-}
-
-type Commit struct {
-	Hash    string
-	Parents []string
-	Changes []Change
-}
-
-func (c Commit) String() string {
-	res := []string{}
-	res = append(res, c.Hash)
-	res = append(res, strings.Join(c.Parents, ","))
-	for _, c := range c.Changes {
-		res = append(res, c.String())
-	}
-	return strings.Join(res, "*\n")
-}
-
-type Change struct {
-	Diff []byte
-}
-
-func (c Change) String() string {
-	return string(c.Diff)
 }
