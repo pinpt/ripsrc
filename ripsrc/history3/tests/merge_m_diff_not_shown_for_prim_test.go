@@ -11,6 +11,7 @@ import (
 // Not doing it correctly does not lead to errors in this case.
 // TODO: need are repro
 func TestMergeMDiffNotShownForPrim(t *testing.T) {
+	t.Skip("test is not correct WIP")
 	test := NewTest(t, "merge_m_diff_not_shown_for_prim")
 	got := test.Run()
 

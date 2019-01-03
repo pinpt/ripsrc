@@ -138,7 +138,7 @@ func (s *Process) processGotMergeParts(resChan chan Result) {
 }
 
 func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ error) {
-
+	//fmt.Println("processing regular commit", commit.Hash)
 	res.Commit = commit.Hash
 	res.Files = map[string]*incblame.Blame{}
 
@@ -228,6 +228,8 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 const deletedPrefix = "@@@del@@@"
 
 func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.Commit) (res Result, _ error) {
+	//fmt.Println("processing merge commit", commitHash)
+
 	parentHashes := s.commitParents[commitHash]
 	parentCount := len(parentHashes)
 
@@ -346,6 +348,7 @@ EACHFILE:
 		s.repoSave(commitHash, k, &blame)
 		res.Files[k] = &blame
 	}
+
 	// for merge commits we need to use the most updated copy
 
 	// get a list of all files in all parents
@@ -355,6 +358,8 @@ EACHFILE:
 			files[f] = true
 		}
 	}
+
+	root := ""
 
 	for f := range files {
 		// already added above
@@ -380,14 +385,28 @@ EACHFILE:
 			panic("no file candidates")
 		}
 
-		// find common parent commit for all
-		root := s.commitParents.LastCommonParent(parentHashes)
+		// TODO: if more than one candidate we pick at random right now
+		// Need to check if this is correct? If no change at merge to any that means they are all the same?
+		// Or we need to check the last common parent and see? This was added in the previous design so possible is not needed anymore.
+
+		/*
+			if root == "" {
+				// TODO: this is not covered by unit tests
+				ts := time.Now()
+				// find common parent commit for all
+				root = s.commitParents.LastCommonParent(parentHashes)
+				dur := time.Since(ts)
+				if dur > time.Second {
+					fmt.Printf("took %v to find last common parent for %v res: %v", dur, parentHashes, root)
+				}
+			}*/
+
 		var res *incblame.Blame
 		for _, c := range candidates {
 			// unchanged
-			if c.Commit == root {
-				continue
-			}
+			//if c.Commit == root {
+			//	continue
+			//}
 			res = c
 		}
 		if res == nil {
@@ -397,6 +416,7 @@ EACHFILE:
 		s.repoSave(commitHash, f, res)
 
 	}
+
 	return
 }
 
