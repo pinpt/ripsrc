@@ -251,3 +251,20 @@ index 0000000..7898192
 	got := Parse([]byte(data))
 	assertEqualDiffs(t, got, want)
 }
+
+func TestParseBinary(t *testing.T) {
+	data := `` +
+		`diff --git a/main.go b/main.go
+new file mode 100644
+index 0000000..6588489
+Binary files /dev/null and b/main.go differ`
+
+	want := Diff{
+		PathPrev: "",
+		Path:     "main.go",
+		IsBinary: true,
+	}
+
+	got := Parse([]byte(data))
+	assertEqualDiffs(t, got, want)
+}

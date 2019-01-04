@@ -1,6 +1,8 @@
 package incblame
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // ApplyMerge creates a new blame data for file based on parent blame data and merge diff for each parent (generated using git -m option)
 func ApplyMerge(parents []Blame, diffs []Diff, commit string, fileForDebug string) Blame {
@@ -9,6 +11,17 @@ func ApplyMerge(parents []Blame, diffs []Diff, commit string, fileForDebug strin
 	//	fmt.Println("parent", i)
 	//	fmt.Println(p)
 	//}
+	for _, p := range parents {
+		if p.IsBinary {
+			panic("binary parent")
+		}
+	}
+
+	for _, d := range diffs {
+		if d.IsBinary {
+			panic("binary diff")
+		}
+	}
 
 	// different view for each parent
 	var cand []Blame

@@ -1,6 +1,12 @@
 package tests
 
-/*
+import (
+	"testing"
+
+	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
+	"github.com/pinpt/ripsrc/ripsrc/history3/process"
+)
+
 // This is a test case for the following condition.
 // If the file in repo was a binary at some point and then switched to text and was modified, then git log with patches does not contain the full file content. There are 2 options to fix this, either we ignore all files that at some point in history were binary or retrieve the full file content for these cases separately without using log and patches.
 func TestEditingFormerBinFile(t *testing.T) {
@@ -16,25 +22,26 @@ func TestEditingFormerBinFile(t *testing.T) {
 			Commit: c1,
 			Files: map[string]*incblame.Blame{
 				"main.go": incblame.BlameBinaryFile(c1),
+			},
 		},
 		{
 			Commit: c2,
 			Files: map[string]*incblame.Blame{
 				"main.go": incblame.BlameBinaryFile(c2),
+			},
 		},
 		{
 			Commit: c3,
 			Files: map[string]*incblame.Blame{
 				"main.go": file(c3,
-					line(`package main`, c12,
-					line(``, c2),
-					line(`func main() {`, c2),
-					line(`}`, c2,
-					line(``, c2),
+					line(`package main`, c1),
+					line(``, c1),
+					line(`func main(){`, c1),
+					line(`}`, c1),
 				),
 			},
 		},
 	}
+
 	assertResult(t, want, got)
 }
-*/

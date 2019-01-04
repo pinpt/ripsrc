@@ -10,6 +10,7 @@ import (
 type Diff struct {
 	PathPrev string
 	Path     string
+	IsBinary bool
 	Hunks    []Hunk
 }
 
@@ -83,11 +84,12 @@ type parser struct {
 const metaRenameFrom = "rename from"
 const metaRenameTo = "rename to"
 const metaNewFile = "new file"
+const metaBinaryFiles = "Binary files"
 
 func newParser(content []byte) *parser {
 	p := &parser{}
 	p.content = content
-	p.wantedMeta = []string{metaRenameFrom, metaRenameTo, metaNewFile}
+	p.wantedMeta = []string{metaRenameFrom, metaRenameTo, metaNewFile, metaBinaryFiles}
 	return p
 }
 
@@ -122,6 +124,10 @@ func (p *parser) Parse() (res Diff) {
 			panic("has rename from, but not rename to")
 		}
 		p.diff.Path = p.preMeta[metaRenameTo]
+	}
+
+	if p.preMeta[metaBinaryFiles] != "" {
+		p.diff.IsBinary = true
 	}
 
 	res = p.diff

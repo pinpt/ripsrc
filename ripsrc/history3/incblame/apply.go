@@ -3,6 +3,7 @@ package incblame
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -11,8 +12,13 @@ import (
 
 // Blame contains blame information for a file, with commit hash that created each particular line.
 type Blame struct {
-	Commit string
-	Lines  []Line
+	Commit   string
+	Lines    []Line
+	IsBinary bool
+}
+
+func BlameBinaryFile(commit string) *Blame {
+	return &Blame{Commit: commit, IsBinary: true}
 }
 
 // Line contains actual data and commit hash for each line in the file.
@@ -42,8 +48,12 @@ func (f Blame) String() string {
 	if len(f.Lines) == 0 {
 		out = append(out, "empty")
 	}
-	for i, l := range f.Lines {
-		out = append(out, strconv.Itoa(i)+":"+l.String())
+	if f.IsBinary {
+		out = append(out, "binary")
+	} else {
+		for i, l := range f.Lines {
+			out = append(out, strconv.Itoa(i)+":"+l.String())
+		}
 	}
 	return strings.Join(out, "\n")
 }
@@ -68,6 +78,10 @@ func (f Blame) Eq(f2 *Blame) bool {
 func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 	rerr := func(err error) {
 		panic(fmt.Errorf("commit:%v file:%v %v", commit, fileForDebug, err))
+	}
+
+	if diff.IsBinary {
+		rerr(errors.New("can't apply diff which is binary file diff"))
 	}
 
 	res := make([]Line, len(file.Lines))

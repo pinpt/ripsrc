@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/pinpt/ripsrc/ripsrc/gitblame2"
+
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/parentsp"
 
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
@@ -146,6 +148,23 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 
 		//fmt.Printf("%+v\n", string(ch.Diff))
 		diff := incblame.Parse(ch.Diff)
+
+		if diff.IsBinary {
+			// do not keep actual lines, but show in result
+			bl := incblame.BlameBinaryFile(commit.Hash)
+
+			if diff.Path == "" {
+				p := diff.PathPrev
+				res.Files[p] = bl
+				// removal
+			} else {
+				p := diff.Path
+				res.Files[p] = bl
+				s.repoSave(commit.Hash, p, bl)
+			}
+			continue
+		}
+
 		//fmt.Printf("diff %+v\n", diff)
 		if diff.Path == "" {
 			// file removed, no longer need to keep blame reference, but showcase the file in res.Files using PathPrev
@@ -164,6 +183,20 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			if len(commit.Parents) != 1 {
 				panic(fmt.Errorf("rename with more than 1 parent (merge) not supported: %v diff: %v", commit.Hash, string(ch.Diff)))
 			}
+			// rename with no patch
+			if len(diff.Hunks) == 0 {
+				parent := commit.Parents[0]
+				pb, ok := s.repo[parent][diff.PathPrev]
+				if !ok {
+					panic("missing file")
+				}
+				if pb.IsBinary {
+					s.repoSave(commit.Hash, diff.Path, pb)
+					res.Files[diff.Path] = pb
+					continue
+				}
+			}
+
 		} else {
 			// this is an empty file creation
 			//if len(diff.Hunks) == 0 {
@@ -197,7 +230,25 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 		if len(parents) == 0 {
 			blame = incblame.Apply(incblame.Blame{}, diff, commit.Hash, diff.PathOrPrev())
 		} else {
-			blame = incblame.Apply(parents[0], diff, commit.Hash, diff.PathOrPrev())
+			if parents[0].IsBinary {
+				// run regular blame instead
+				bl, err := gitblame2.Run(s.opts.RepoDir, commit.Hash, diff.Path)
+				fmt.Println("running regular blame for file switching from bin mode to regular")
+				if err != nil {
+					return res, err
+				}
+				bl2 := incblame.Blame{}
+				bl2.Commit = commit.Hash
+				for _, l := range bl.Lines {
+					l2 := incblame.Line{}
+					l2.Commit = l.CommitHash
+					l2.Line = []byte(l.Content)
+					bl2.Lines = append(bl2.Lines, l2)
+				}
+				blame = bl2
+			} else {
+				blame = incblame.Apply(parents[0], diff, commit.Hash, diff.PathOrPrev())
+			}
 		}
 
 		s.repoSave(commit.Hash, diff.Path, &blame)

@@ -17,6 +17,9 @@ func assertEqualDiffs(t *testing.T, got, want Diff) {
 func diffString(diff Diff) string {
 	res := []string{}
 	res = append(res, `paths:'`+diff.PathPrev+`:`+diff.Path+`'`)
+	if diff.IsBinary {
+		res = append(res, `binary`)
+	}
 	for _, h := range diff.Hunks {
 		res = append(res,
 			fmt.Sprintf("%+v", h.Locations),
