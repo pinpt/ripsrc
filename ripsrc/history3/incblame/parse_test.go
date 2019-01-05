@@ -222,7 +222,26 @@ index 0000000..e69de29`
 	assertEqualDiffs(t, got, want)
 }
 
-func TestParseSpaceInName(t *testing.T) {
+func TestParseDelete(t *testing.T) {
+	data := `` +
+		`diff --git a/b.txt b/b.txt
+deleted file mode 100644
+index 6178079..0000000
+--- a/b.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-b`
+
+	want := Diff{
+		PathPrev: "b.txt",
+		Path:     "",
+	}
+
+	got := Parse([]byte(data))
+	assertEqualDiffs(t, got, want)
+}
+
+func TestParseSpaceInName1(t *testing.T) {
 	data := `` +
 		`diff --git a/a a.txt b/a a.txt
 new file mode 100644
@@ -232,6 +251,35 @@ index 0000000..7898192
 @@ -0,0 +1 @@
 +a
 `
+
+	want := Diff{
+		PathPrev: "",
+		Path:     "a a.txt",
+		Hunks: []Hunk{
+			{
+				Locations: []HunkLocation{
+					{OpDel, 0, 0},
+					{OpAdd, 0, 1},
+				},
+				Data: []byte(`+a
+`),
+			},
+		},
+	}
+
+	got := Parse([]byte(data))
+	assertEqualDiffs(t, got, want)
+}
+
+func TestParseSpaceInName2(t *testing.T) {
+	data := `` +
+		`diff --git a/a a.txt b/a a.txt
+new file mode 100644
+index 0000000..7898192
+--- /dev/null
++++ b/a a.txt   
+@@ -0,0 +1 @@
++a`
 
 	want := Diff{
 		PathPrev: "",

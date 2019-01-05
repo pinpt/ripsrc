@@ -80,8 +80,12 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 		panic(fmt.Errorf("commit:%v file:%v %v", commit, fileForDebug, err))
 	}
 
+	if file.IsBinary {
+		rerr(errors.New("file.IsBinary"))
+	}
+
 	if diff.IsBinary {
-		rerr(errors.New("can't apply diff which is binary file diff"))
+		rerr(errors.New("diff.IsBinary"))
 	}
 
 	res := make([]Line, len(file.Lines))

@@ -118,7 +118,7 @@ func assertResult(t *testing.T, want, got []process.Result) {
 		}
 		commit := w.Commit
 		if len(w.Files) != len(g.Files) {
-			t.Fatalf("invalid number of entries %v for commit %v, got\n%v", len(w.Files), commit, g.Files)
+			t.Fatalf("invalid number of entries %v for commit %v, got\n%v", len(g.Files), commit, g.Files)
 		}
 		for filePath := range w.Files {
 			gf := g.Files[filePath]

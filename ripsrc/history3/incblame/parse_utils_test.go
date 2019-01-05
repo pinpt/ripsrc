@@ -64,6 +64,12 @@ func TestParseDiffDecl(t *testing.T) {
 			FromPath: "a/a.txt",
 			ToPath:   "a/a.txt",
 		},
+		{
+			Label:    "double quotes in name",
+			In:       "diff --git \"a/tests/regressiontests/staticfiles_tests/apps/test/static/test/spec\314\247ial.txt\" \"b/tests/regressiontests/staticfiles_tests/apps/test/static/test/spec\314\247ial.txt\"",
+			FromPath: "tests/regressiontests/staticfiles_tests/apps/test/static/test/spec\314\247ial.txt",
+			ToPath:   "tests/regressiontests/staticfiles_tests/apps/test/static/test/spec\314\247ial.txt",
+		},
 		// tricky
 		// dir name = "a.txt b"
 		// file name = "b.txt"

@@ -20,8 +20,12 @@ type Process struct {
 	gitCommand string
 
 	// map[commitHash]map[filePath]*incblame.Blame
-	repo          map[string]map[string]*incblame.Blame
-	commitParents graph.Graph
+	repo map[string]map[string]*incblame.Blame
+
+	commitParents      graph.Graph
+	commitChildren     map[string][]string
+	childrenProcessed  map[string]int
+	maxLenOfStoredTree int
 
 	mergePartsCommit string
 	// map[parent_diffed]parser.Commit
@@ -56,6 +60,14 @@ func (s *Process) Run(resChan chan Result) error {
 		return err
 	}
 
+	s.commitChildren = map[string][]string{}
+	for commit, parents := range s.commitParents {
+		for _, p := range parents {
+			s.commitChildren[p] = append(s.commitChildren[p], commit)
+		}
+	}
+	s.childrenProcessed = map[string]int{}
+
 	r, err := s.gitLogPatches()
 	if err != nil {
 		return err
@@ -81,7 +93,25 @@ func (s *Process) Run(resChan chan Result) error {
 		s.processGotMergeParts(resChan)
 	}
 
+	//fmt.Println("max len of stored tree", s.maxLenOfStoredTree)
+	//fmt.Println("repo len", len(s.repo))
+
 	return nil
+}
+
+func (s *Process) trimGraphAfterCommitProcessed(commit string) {
+	parents := s.commitParents[commit]
+	for _, p := range parents {
+		s.childrenProcessed[p]++ // mark commit as processed
+		siblings := s.commitChildren[p]
+		if s.childrenProcessed[p] == len(siblings) {
+			// done with parent, can delete it
+			delete(s.repo, p)
+		}
+	}
+	if len(s.repo) > s.maxLenOfStoredTree {
+		s.maxLenOfStoredTree = len(s.repo)
+	}
 }
 
 func (s *Process) retrieveParents() error {
@@ -127,6 +157,7 @@ func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
 	if err != nil {
 		panic(err)
 	}
+	s.trimGraphAfterCommitProcessed(commit.Hash)
 	resChan <- res
 }
 
@@ -135,6 +166,7 @@ func (s *Process) processGotMergeParts(resChan chan Result) {
 	if err != nil {
 		panic(err)
 	}
+	s.trimGraphAfterCommitProcessed(s.mergePartsCommit)
 	s.mergeParts = nil
 	resChan <- res
 }
@@ -188,7 +220,11 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 				parent := commit.Parents[0]
 				pb, ok := s.repo[parent][diff.PathPrev]
 				if !ok {
-					panic("missing file")
+					filesInParent := []string{}
+					for f := range s.repo[parent] {
+						filesInParent = append(filesInParent, f)
+					}
+					panic(fmt.Errorf("regular commit %v, file rename from %v to %v, file not found in parent %v files in parent: %v", commit.Hash, diff.PathPrev, diff.Path, parent, filesInParent))
 				}
 				if pb.IsBinary {
 					s.repoSave(commit.Hash, diff.Path, pb)
@@ -231,21 +267,11 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			blame = incblame.Apply(incblame.Blame{}, diff, commit.Hash, diff.PathOrPrev())
 		} else {
 			if parents[0].IsBinary {
-				// run regular blame instead
-				bl, err := gitblame2.Run(s.opts.RepoDir, commit.Hash, diff.Path)
-				fmt.Println("running regular blame for file switching from bin mode to regular")
+				bl, err := s.slowGitBlame(commit.Hash, diff.Path)
 				if err != nil {
 					return res, err
 				}
-				bl2 := incblame.Blame{}
-				bl2.Commit = commit.Hash
-				for _, l := range bl.Lines {
-					l2 := incblame.Line{}
-					l2.Commit = l.CommitHash
-					l2.Line = []byte(l.Content)
-					bl2.Lines = append(bl2.Lines, l2)
-				}
-				blame = bl2
+				blame = bl
 			} else {
 				blame = incblame.Apply(parents[0], diff, commit.Hash, diff.PathOrPrev())
 			}
@@ -339,12 +365,69 @@ EACHFILE:
 		//}
 
 		if isDelete {
-			// file removed, no longer need to keep blame reference, but showcase the file in res.Files using PathPrev
+			// only showing deletes and files changed in merge comparent to at least one parent
 			pathPrev := k[len(deletedPrefix):]
 			res.Files[pathPrev] = &incblame.Blame{Commit: commitHash}
 			continue
 		}
+
 		// below k == new file path
+
+		binaryDiffs := 0
+		for _, diff := range diffs {
+			if diff == nil {
+				continue
+			}
+			if diff.IsBinary {
+				binaryDiffs++
+			}
+		}
+
+		binParentsWithDiffs := 0
+		for i, diff := range diffs {
+			if diff == nil {
+				continue
+			}
+			if diff.PathPrev == "" {
+				// create
+				continue
+			}
+			parent := parentHashes[i]
+			pb, ok := s.repo[parent][diff.PathPrev]
+			if !ok {
+				panic("parent not found")
+			}
+			if pb.IsBinary {
+				binParentsWithDiffs++
+			}
+		}
+
+		// do not try to resolve the diffs for binary files in merge commits
+		if binaryDiffs != 0 || binParentsWithDiffs != 0 {
+			bl := incblame.BlameBinaryFile(commitHash)
+			s.repoSave(commitHash, k, bl)
+			res.Files[k] = bl
+			continue
+		}
+		/*
+			// file is a binary
+			if binaryDiffs == validDiffs {
+				bl := incblame.BlameBinaryFile(commitHash)
+				s.repoSave(commitHash, k, bl)
+				res.Files[k] = bl
+				continue
+			}
+
+			// file is not a binary but one of the parents was a binary, need to use a regular git blame
+			if binaryParents != 0 {
+				bl, err := s.slowGitBlame(commitHash, k)
+				if err != nil {
+					return res, err
+				}
+				s.repoSave(commitHash, k, &bl)
+				res.Files[k] = &bl
+				continue
+			}*/
 
 		for i, diff := range diffs {
 			if diff == nil {
@@ -397,6 +480,8 @@ EACHFILE:
 		}
 		blame := incblame.ApplyMerge(parents, diffs2, commitHash, k)
 		s.repoSave(commitHash, k, &blame)
+
+		// only showing deletes and files changed in merge comparent to at least one parent
 		res.Files[k] = &blame
 	}
 
@@ -468,6 +553,22 @@ EACHFILE:
 
 	}
 
+	return
+}
+
+func (s *Process) slowGitBlame(commitHash string, filePath string) (res incblame.Blame, _ error) {
+	bl, err := gitblame2.Run(s.opts.RepoDir, commitHash, filePath)
+	//fmt.Println("running regular blame for file switching from bin mode to regular")
+	if err != nil {
+		return res, err
+	}
+	res.Commit = commitHash
+	for _, l := range bl.Lines {
+		l2 := incblame.Line{}
+		l2.Commit = l.CommitHash
+		l2.Line = []byte(l.Content)
+		res.Lines = append(res.Lines, l2)
+	}
 	return
 }
 

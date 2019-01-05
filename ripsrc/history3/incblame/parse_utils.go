@@ -107,10 +107,14 @@ func parseDiffDecl(diff []byte) (fromPath string, toPath string, _ error) {
 		return "", "", fmt.Errorf("invalid format for diff decl, no space sep %s", diff)
 	}
 	remPrefix := func(data []byte, pr string) (string, error) {
-		if len(data) <= len(pr) || string(data[0:len(pr)]) != pr {
+		d2 := data
+		if len(d2) >= 2 && d2[0] == '"' && d2[len(d2)-1] == '"' {
+			d2 = d2[1 : len(d2)-1]
+		}
+		if len(d2) <= len(pr) || string(d2[0:len(pr)]) != pr {
 			return "", fmt.Errorf("invalid format for diff decl %s, removing prefix %s", diff, data)
 		}
-		return string(data[len(pr):]), nil
+		return string(d2[len(pr):]), nil
 	}
 	// simple case with no spaces in name
 	if spaceCount == 1 {

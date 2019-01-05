@@ -77,19 +77,18 @@ type parser struct {
 	res []Hunk
 
 	wantedMeta []string
-
-	//endNl bool // does content ends with newline?
 }
 
 const metaRenameFrom = "rename from"
 const metaRenameTo = "rename to"
 const metaNewFile = "new file"
+const metaDeletedFile = "deleted file"
 const metaBinaryFiles = "Binary files"
 
 func newParser(content []byte) *parser {
 	p := &parser{}
 	p.content = content
-	p.wantedMeta = []string{metaRenameFrom, metaRenameTo, metaNewFile, metaBinaryFiles}
+	p.wantedMeta = []string{metaRenameFrom, metaRenameTo, metaNewFile, metaDeletedFile, metaBinaryFiles}
 	return p
 }
 
@@ -97,9 +96,6 @@ func (p *parser) Parse() (res Diff) {
 	if len(p.content) == 0 {
 		return
 	}
-	//	if p.content[len(p.content)-1] == '\n' {
-	//		p.endNl = true
-	//	}
 
 	p.state = stParseDiff
 	p.preMeta = map[string]string{}
@@ -114,8 +110,15 @@ func (p *parser) Parse() (res Diff) {
 	}
 	p.finishHunk()
 
+	p.diff.Hunks = p.res
+
 	if p.preMeta[metaNewFile] != "" {
 		p.diff.PathPrev = ""
+	}
+
+	if p.preMeta[metaDeletedFile] != "" {
+		p.diff.Path = ""
+		p.diff.Hunks = nil
 	}
 
 	if p.preMeta[metaRenameFrom] != "" {
@@ -131,7 +134,6 @@ func (p *parser) Parse() (res Diff) {
 	}
 
 	res = p.diff
-	res.Hunks = p.res
 
 	return
 }
@@ -147,6 +149,9 @@ func (p *parser) line(b []byte) {
 			if err == errParseDiffDeclMerge {
 				// will get name from diff later
 				return
+			} else if err == errParseDiffDeclRenameWithSpaces {
+				// will get name from diff later
+				return
 			}
 			panic(err)
 		}
@@ -158,12 +163,10 @@ func (p *parser) line(b []byte) {
 				}
 			}
 		} else {
-			p.diff.PathPrev = extractName(b)
 			p.state = stNextIsCurrName
 
 		}
 	case stNextIsCurrName:
-		p.diff.Path = extractName(b)
 		p.state = stNextIsContext
 	case stNextIsContext:
 		if len(b) <= 2 {
