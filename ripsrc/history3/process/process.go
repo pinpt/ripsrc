@@ -172,6 +172,9 @@ func (s *Process) processGotMergeParts(resChan chan Result) {
 }
 
 func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ error) {
+	if len(commit.Parents) > 1 {
+		panic("not a regular commit")
+	}
 	//fmt.Println("processing regular commit", commit.Hash)
 	res.Commit = commit.Hash
 	res.Files = map[string]*incblame.Blame{}
@@ -240,40 +243,42 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			//}
 		}
 
-		var parents []incblame.Blame
+		var parentBlame *incblame.Blame
+
 		if diff.PathPrev == "" {
 			// file added in this commit, no parent blame for this file
 		} else {
-			for _, p := range commit.Parents {
-				pb, ok := s.repo[p][diff.PathPrev]
+			switch len(commit.Parents) {
+			case 0: // initial commit, no parent
+			case 1: // regular commit
+				parentHash := commit.Parents[0]
+				pc, ok := s.repo[parentHash]
 				if !ok {
-					// use empty file since merge will have line for it
-					pb = &incblame.Blame{Commit: p}
-					// file is not necessary in all parents if it was created in branch and then modified at merge
-					// see merge_new_with_change test
-					/*
-						filesAtParent := []string{}
-						for f := range s.repo[p] {
-							filesAtParent = append(filesAtParent, f)
-						}
-						panic(fmt.Errorf("could not find file reference for commit %v parent %v, path %v, pathPrev %v, files at parent\n%v", commit.Hash, p, diff.Path, diff.PathPrev, filesAtParent))*/
+					panic("parent commit not found")
 				}
+				pb, ok := pc[diff.PathPrev]
+				// file may not be in parent if this is create
+				if ok {
+					parentBlame = pb
+				}
+			case 2: // merge
+				panic("merge passed to regular commit processing")
 
-				parents = append(parents, *pb)
 			}
 		}
+
 		var blame incblame.Blame
-		if len(parents) == 0 {
+		if parentBlame == nil {
 			blame = incblame.Apply(incblame.Blame{}, diff, commit.Hash, diff.PathOrPrev())
 		} else {
-			if parents[0].IsBinary {
+			if parentBlame.IsBinary {
 				bl, err := s.slowGitBlame(commit.Hash, diff.Path)
 				if err != nil {
 					return res, err
 				}
 				blame = bl
 			} else {
-				blame = incblame.Apply(parents[0], diff, commit.Hash, diff.PathOrPrev())
+				blame = incblame.Apply(*parentBlame, diff, commit.Hash, diff.PathOrPrev())
 			}
 		}
 
@@ -616,6 +621,7 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		"log",
 		"-p",
 		"-m",
+		"--date-order",
 		"--reverse",
 		"--no-abbrev-commit",
 		"--pretty=short",
