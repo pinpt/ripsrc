@@ -19,7 +19,7 @@ const cacheDir = ".pp-git-cache"
 
 func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
 	start := time.Now()
-	headCommit := headCommit(ctx, gitCommand)
+	headCommit := headCommit(ctx, gitCommand, repoDir)
 	cacheKey := hashString(strings.Join(args, "@") + headCommit)
 
 	loc := filepath.Join(repoDir, cacheDir, cacheKey+".txt")
@@ -65,9 +65,10 @@ func hashString(str string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func headCommit(ctx context.Context, gitCommand string) string {
+func headCommit(ctx context.Context, gitCommand string, repoDir string) string {
 	out := bytes.NewBuffer(nil)
 	c := exec.Command(gitCommand, "rev-parse", "HEAD")
+	c.Dir = repoDir
 	c.Stdout = out
 	c.Run()
 	res := strings.TrimSpace(out.String())
