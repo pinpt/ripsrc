@@ -116,10 +116,10 @@ func (s *Processor) RunMap() (map[string]Commit, error) {
 func (s *Processor) Run(res chan Commit) error {
 	defer close(res)
 	r, err := s.gitLog()
-	defer r.Close()
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 
 	var parser parser
 	parser.dir = s.repoDir
