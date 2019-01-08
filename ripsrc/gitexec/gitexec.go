@@ -10,13 +10,55 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
 const cacheDir = ".pp-git-cache"
+const casheVersion = "1"
+
+func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
+	start := time.Now()
+	headCommit := headCommit(ctx, gitCommand, repoDir)
+	cacheKey := hashString(casheVersion + "@" + strings.Join(args, "@") + headCommit)[0:16]
+
+	loc := filepath.Join(repoDir, cacheDir, cacheKey+".txt.gz")
+
+	f, err := os.Open(loc)
+	if err == nil {
+		fmt.Println("Using cache for ", repoDir, strings.Join(args, " "))
+		return newGzipFileCloser(f)
+	} else {
+		if !os.IsNotExist(err) {
+			panic(fmt.Errorf("could not open file at location %v, err %v", loc, err))
+		}
+	}
+
+	err = os.MkdirAll(filepath.Dir(loc), 0777)
+	if err != nil {
+		return nil, fmt.Errorf("can't create the cache dir for repoDir: '%v' err: %v", repoDir, err)
+	}
+
+	err = execToFile(ctx, loc+".tmp", gitCommand, repoDir, args)
+	if err != nil {
+		return nil, fmt.Errorf("can't write git command output to file repoDir: '%v' err: %v", repoDir, err)
+	}
+
+	err = os.Rename(loc+".tmp", loc)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Took", time.Since(start), "to run git", repoDir, strings.Join(args, " "))
+
+	f, err = os.Open(loc)
+	if err != nil {
+		return nil, err
+	}
+	return newGzipFileCloser(f)
+
+}
 
 type fileCloser struct {
 	f *os.File
@@ -41,50 +83,6 @@ func newGzipFileCloser(f *os.File) (io.ReadCloser, error) {
 	res.f = f
 	res.ReadCloser = gr
 	return res, nil
-}
-
-const casheVersion = "1"
-
-func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
-	start := time.Now()
-	headCommit := headCommit(ctx, gitCommand, repoDir)
-	cacheKey := hashString(casheVersion + "@" + strings.Join(args, "@") + headCommit)
-
-	loc := filepath.Join(repoDir, cacheDir, cacheKey+".txt.gz")
-
-	f, err := os.Open(loc)
-	if err == nil {
-		fmt.Println("Using cache for ", repoDir, strings.Join(args, " "))
-		return newGzipFileCloser(f)
-	} else {
-		if !os.IsNotExist(err) {
-			panic(fmt.Errorf("could not open file at location %v, err %v", loc, err))
-		}
-	}
-
-	err = os.MkdirAll(path.Dir(loc), 0777)
-	if err != nil {
-		return nil, fmt.Errorf("can't create the cache dir for repoDir: '%v' err: %v", repoDir, err)
-	}
-
-	err = execToFile(ctx, loc+".tmp", gitCommand, repoDir, args)
-	if err != nil {
-		return nil, fmt.Errorf("can't write git command output to file repoDir: '%v' err: %v", repoDir, err)
-	}
-
-	err = os.Rename(loc+".tmp", loc)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("Took", time.Since(start), "to run git", repoDir, strings.Join(args, " "))
-
-	f, err = os.Open(loc)
-	if err != nil {
-		return nil, err
-	}
-	return newGzipFileCloser(f)
-
 }
 
 func execToFile(ctx context.Context, loc string, gitCommand string, repoDir string, args []string) error {
