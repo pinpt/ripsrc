@@ -62,11 +62,14 @@ func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args 
 		}
 	}
 
-	os.MkdirAll(path.Dir(loc), 0777)
+	err = os.MkdirAll(path.Dir(loc), 0777)
+	if err != nil {
+		return nil, fmt.Errorf("can't create the cache dir for repoDir: '%v' err: %v", repoDir, err)
+	}
 
 	err = execToFile(ctx, loc+".tmp", gitCommand, repoDir, args)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't write git command output to file repoDir: '%v' err: %v", repoDir, err)
 	}
 
 	err = os.Rename(loc+".tmp", loc)
