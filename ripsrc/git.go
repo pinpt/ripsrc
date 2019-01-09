@@ -193,7 +193,6 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	var errMu sync.Mutex
 	var errorString strings.Builder
 	var wg sync.WaitGroup
-	var content string
 	done := make(chan bool, 1)
 	wg.Add(1)
 	go func() {
@@ -212,7 +211,6 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 				errorString.WriteString("\n")
 				errMu.Unlock()
 			case line := <-gitlog.Stdout:
-				content += line + "\n"
 				if line == "" {
 					continue
 				}
