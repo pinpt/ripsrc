@@ -19,6 +19,7 @@ var rootCmd = &cobra.Command{
 	Use:  "ripsrc <dir>",
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("starting ripsrc")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		// potentially enable profiling

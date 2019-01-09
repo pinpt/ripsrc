@@ -19,6 +19,8 @@ const cacheDir = ".pp-git-cache"
 const casheVersion = "1"
 
 func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
+	//return ExecPiped(ctx, gitCommand, repoDir, args)
+
 	start := time.Now()
 	headCommit := headCommit(ctx, gitCommand, repoDir)
 	cacheKey := hashString(casheVersion + "@" + strings.Join(args, "@") + headCommit)[0:16]
@@ -119,6 +121,21 @@ func headCommit(ctx context.Context, gitCommand string, repoDir string) string {
 		panic("invalid head commit sha len")
 	}
 	return res
+}
+
+func ExecPiped(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
+	r, wr := io.Pipe()
+	go func() {
+		err := ExecIntoWriter(ctx, wr, gitCommand, repoDir, args)
+		if err != nil {
+			panic(err)
+		}
+		err = wr.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
+	return r, nil
 }
 
 func Exec(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
