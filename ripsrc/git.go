@@ -192,14 +192,20 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 	gitlog.Dir = dir
 	var errMu sync.Mutex
 	var errorString strings.Builder
+	var wg sync.WaitGroup
 	var content string
+	done := make(chan bool, 1)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		var commit *Commit
 		var total int
 		ordinal := time.Now().Unix()
 	done:
 		for {
 			select {
+			case <-done:
+				break done
 			case line := <-gitlog.Stderr:
 				errMu.Lock()
 				errorString.WriteString(line)
@@ -367,7 +373,11 @@ func streamCommits(ctx context.Context, dir string, sha string, limit int, commi
 		l, e = len(gitlog.Stdout), len(gitlog.Stderr)
 	}
 
-	fmt.Println(content)
+	done <- true
+
+	close(done)
+
+	wg.Wait()
 
 	if gitlog.Status().Error != nil {
 		return gitlog.Status().Error
