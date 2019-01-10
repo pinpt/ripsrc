@@ -63,7 +63,7 @@ func New(r io.Reader) *Parser {
 }
 
 const mb = 1000 * 1000
-const maxLine = 10 * mb
+const maxLine = 100 * mb
 
 func (s *Parser) Run(res chan Commit) error {
 	defer close(res)
