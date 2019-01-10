@@ -163,7 +163,7 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--pretty=format:!SHA: %H%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
 	}
 
-	return gitexec.ExecWithCache(context.Background(), s.gitCommand, s.repoDir, args)
+	return gitexec.ExecPiped(context.Background(), s.gitCommand, s.repoDir, args)
 }
 
 var (

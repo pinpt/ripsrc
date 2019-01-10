@@ -37,7 +37,8 @@ type Process struct {
 }
 
 type Opts struct {
-	RepoDir      string
+	RepoDir string
+	// DisableCache is unused.
 	DisableCache bool
 }
 
@@ -692,11 +693,11 @@ func (s *Process) gitLogParents() (io.ReadCloser, error) {
 	}
 
 	ctx := context.Background()
-	if s.opts.DisableCache {
+	//if s.opts.DisableCache {
 
-		return gitexec.Exec(ctx, s.gitCommand, s.opts.RepoDir, args)
-	}
-	return gitexec.ExecWithCache(ctx, s.gitCommand, s.opts.RepoDir, args)
+	return gitexec.ExecPiped(ctx, s.gitCommand, s.opts.RepoDir, args)
+	//}
+	//return gitexec.ExecWithCache(ctx, s.gitCommand, s.opts.RepoDir, args)
 }
 
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
@@ -711,9 +712,9 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 	}
 
 	ctx := context.Background()
-	if s.opts.DisableCache {
+	//if s.opts.DisableCache {
 
-		return gitexec.Exec(ctx, s.gitCommand, s.opts.RepoDir, args)
-	}
-	return gitexec.ExecWithCache(ctx, s.gitCommand, s.opts.RepoDir, args)
+	return gitexec.ExecPiped(ctx, s.gitCommand, s.opts.RepoDir, args)
+	//}
+	//return gitexec.ExecWithCache(ctx, s.gitCommand, s.opts.RepoDir, args)
 }

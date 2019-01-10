@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const cacheDir = ".pp-git-cache"
+const cacheDir = "pp-git-cache"
 const casheVersion = "1"
 
 func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
@@ -23,7 +23,7 @@ func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args 
 
 	start := time.Now()
 	headCommit := headCommit(ctx, gitCommand, repoDir)
-	cacheKey := hashString(casheVersion + "@" + strings.Join(args, "@") + headCommit)[0:16]
+	cacheKey := hashString(casheVersion + "@" + strings.Join(args, "@") + headCommit)[0:32]
 
 	loc := filepath.Join(repoDir, cacheDir, cacheKey+".txt.gz")
 
