@@ -702,6 +702,7 @@ func (s *Process) gitLogParents() (io.ReadCloser, error) {
 
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 	args := []string{
+		"-c", "diff.renameLimit=10000",
 		"log",
 		"-p",
 		"-m",
