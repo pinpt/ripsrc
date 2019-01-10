@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bufio"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -26,7 +27,7 @@ const stNotStarted = "stNotStarted"
 const stParentsNext = "stParentsNext"
 const stSkipAuthor = "stSkipAuthor"
 const stSkipMessage = "stSkipMessage"
-const stDiffNext = "stDiffNext"
+const stSkippingMessageDiffOrCommitNext = "stSkippingMessageDiffOrCommitNext"
 const stInDiff = "stInDiff"
 const stCommitNext = "stCommitNext"
 
@@ -96,16 +97,16 @@ func (s *Parser) line(b []byte) {
 			s.line(b)
 		}
 	case stSkipAuthor:
-		s.state = stSkipMessage
-		s.msgEmptyLines = 0
-	case stSkipMessage:
+		s.state = stSkippingMessageDiffOrCommitNext
+	case stSkippingMessageDiffOrCommitNext:
 		if len(b) == 0 {
-			s.msgEmptyLines++
+			// commit message
+			return
 		}
-		if s.msgEmptyLines == 2 {
-			s.state = stDiffNext
+		if b[0] == ' ' {
+			// commit message
+			return
 		}
-	case stDiffNext:
 		if s.isDiffStart(b) {
 			s.startDiff(b)
 		} else if startsWith(b, "commit ") {
@@ -113,7 +114,7 @@ func (s *Parser) line(b []byte) {
 			s.state = stCommitNext
 			s.line(b)
 		} else {
-			panic(fmt.Errorf("expecting diff start or empty string for empty diff, got %s", b))
+			panic(fmt.Errorf("stSkippingMessageDiffOrCommitNext unexpected line, got %s %s", hex.EncodeToString(b), b))
 		}
 	case stInDiff:
 		if len(b) == 0 {

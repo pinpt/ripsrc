@@ -200,6 +200,80 @@ index 0000000..7898192
 	assertEqualCommits(t, got, want)
 }
 
+func TestExtraEmptyLineAfterCommitMessageOnWindows(t *testing.T) {
+
+	data := `commit e99cb00954f08c1d33c5935742809868335483bf
+Author: User1 <user1@example.com>
+
+    c1
+
+
+diff --git a/a.txt b/a.txt
+new file mode 100644
+index 0000000..7898192
+--- /dev/null
++++ b/a.txt
+@@ -0,0 +1 @@
++a
++b
+
+commit d497eccaf64c229771f471386cf49e4f653a00cb
+Author: User1 <user1@example.com>
+
+    c2
+
+diff --git a/a.txt b/a.txt
+index 7898192..e61ef7b 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1 +1 @@
+-a
++aa
+`
+
+	p := New(strings.NewReader(data))
+	got, err := p.RunGetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []Commit{
+		{
+			Hash: "e99cb00954f08c1d33c5935742809868335483bf",
+			Changes: []Change{
+				{
+					Diff: tb(`diff --git a/a.txt b/a.txt
+new file mode 100644
+index 0000000..7898192
+--- /dev/null
++++ b/a.txt
+@@ -0,0 +1 @@
++a
++b
+`),
+				},
+			},
+		},
+		{
+			Hash: "d497eccaf64c229771f471386cf49e4f653a00cb",
+			Changes: []Change{
+				{
+					Diff: tb(`diff --git a/a.txt b/a.txt
+index 7898192..e61ef7b 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1 +1 @@
+-a
++aa
+`),
+				},
+			},
+		},
+	}
+
+	assertEqualCommits(t, got, want)
+}
+
 func tb(s string) []byte {
 	return []byte(s)
 }
