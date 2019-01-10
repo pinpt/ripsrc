@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -100,11 +101,13 @@ var rootCmd = &cobra.Command{
 		started := time.Now()
 		if f, err := os.Stat(filepath.Join(args[0], ".git")); err == nil && f.IsDir() {
 			resultsDone, results := createRepoProcessor("", false)
-			if err := ripsrc.New().Rip(ctx, args[0], results); err != nil {
+			ripper := ripsrc.New()
+			if err := ripper.Rip(ctx, args[0], results); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 			<-resultsDone
+			outputStats(ripper, color.Output)
 		} else {
 			files, err := ioutil.ReadDir(args[0])
 			if err != nil {
@@ -117,18 +120,26 @@ var rootCmd = &cobra.Command{
 					resultsDone, results := createRepoProcessor(name, true)
 					fmt.Fprintf(color.Output, "starting repo processing for %v\n", color.HiGreenString(name))
 					start := count
+					ripper := ripsrc.New()
 					localstart := time.Now()
-					if err := ripsrc.New().Rip(ctx, filepath.Dir(fd), results); err != nil {
+					if err := ripper.Rip(ctx, filepath.Dir(fd), results); err != nil {
 						fmt.Println(err)
 						os.Exit(1)
 					}
 					<-resultsDone
 					fmt.Fprintf(color.Output, "finished repo processing for %v in %v. %d entries processed\n", color.HiGreenString(name), time.Since(localstart), count-start)
+
 				}
 			}
 		}
 		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
 	},
+}
+
+func outputStats(ripper *ripsrc.Ripper, wr io.Writer) {
+	ripper.GitProcessTimings.OutputStats(wr)
+	fmt.Fprintln(wr)
+	ripper.CodeInfoTimings.OutputStats(wr)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

@@ -2,8 +2,10 @@ package ripsrc
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 	"runtime/debug"
+	"time"
 
 	"github.com/boyter/scc/processor"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
@@ -99,7 +101,25 @@ const (
 	fileBinary         = "File was binary"
 )
 
+type CodeInfoTimings struct {
+	Count int
+	Time  time.Duration
+}
+
+func (s *CodeInfoTimings) OutputStats(wr io.Writer) {
+	fmt.Fprintln(wr, "code info timing")
+	fmt.Fprintln(wr, "files processed", s.Count)
+	fmt.Fprintln(wr, "total time", s.Time)
+}
+
 func (s *Ripper) codeInfoFile(filePath string, bl *incblame.Blame, res BlameResult) (BlameResult, error) {
+	start := time.Now()
+	defer func() {
+		dur := time.Since(start)
+		s.CodeInfoTimings.Count++
+		s.CodeInfoTimings.Time += dur
+	}()
+
 	fileBytes := blameToFileContent(bl)
 	fileSize := len(fileBytes)
 	// check for max file size exclusion

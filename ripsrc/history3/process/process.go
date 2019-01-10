@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
+	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/gitblame2"
 
@@ -30,6 +32,8 @@ type Process struct {
 	mergePartsCommit string
 	// map[parent_diffed]parser.Commit
 	mergeParts map[string]parser.Commit
+
+	timing *Timing
 }
 
 type Opts struct {
@@ -46,8 +50,13 @@ func New(opts Opts) *Process {
 	s := &Process{}
 	s.opts = opts
 	s.gitCommand = "git"
+	s.timing = &Timing{}
 	s.repo = map[string]map[string]*incblame.Blame{}
 	return s
+}
+
+func (s *Process) Timing() Timing {
+	return *s.timing
 }
 
 func (s *Process) Run(resChan chan Result) error {
@@ -171,7 +180,73 @@ func (s *Process) processGotMergeParts(resChan chan Result) {
 	resChan <- res
 }
 
+type Timing struct {
+	RegularCommitsCount int
+	RegularCommitsTime  time.Duration
+	MergesCount         int
+	MergesTime          time.Duration
+	SlowestCommits      []CommitWithDuration
+}
+
+type CommitWithDuration struct {
+	Commit   string
+	Duration time.Duration
+}
+
+const maxSlowestCommits = 10
+
+func (s *Timing) UpdateSlowestCommitsWith(commit string, d time.Duration) {
+	s.SlowestCommits = append(s.SlowestCommits, CommitWithDuration{Commit: commit, Duration: d})
+	sort.Slice(s.SlowestCommits, func(i, j int) bool {
+		a := s.SlowestCommits[i]
+		b := s.SlowestCommits[j]
+		return a.Duration > b.Duration
+	})
+	if len(s.SlowestCommits) > maxSlowestCommits {
+		s.SlowestCommits = s.SlowestCommits[0:maxSlowestCommits]
+	}
+}
+
+func (s *Timing) SlowestCommitsDur() (res time.Duration) {
+	for _, c := range s.SlowestCommits {
+		res += c.Duration
+	}
+	return
+}
+
+/*
+func (s *Timing) Stats() map[string]interface{} {
+	return map[string]interface{}{
+		"TotalRegularCommit": s.TotalRegularCommit,
+		"TotalMerges":        s.TotalMerges,
+		"SlowestCommits":     s.SlowestCommits,
+		"SlowestCommitsDur":  s.SlowestCommitsDur(),
+	}
+}*/
+
+func (s *Timing) OutputStats(wr io.Writer) {
+	fmt.Fprintln(wr, "git processor timing")
+	fmt.Fprintln(wr, "regular commits", s.RegularCommitsCount)
+	fmt.Fprintln(wr, "time in regular commits", s.RegularCommitsTime)
+	fmt.Fprintln(wr, "merges", s.MergesCount)
+	fmt.Fprintln(wr, "time in merges commits", s.MergesTime)
+	fmt.Fprintf(wr, "time in %v slowest commits %v\n", len(s.SlowestCommits), s.SlowestCommitsDur())
+	fmt.Fprintln(wr, "slowest commits")
+	for _, c := range s.SlowestCommits {
+		fmt.Fprintf(wr, "%v %v\n", c.Commit, c.Duration)
+	}
+
+}
+
 func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ error) {
+	start := time.Now()
+	defer func() {
+		dur := time.Since(start)
+		s.timing.UpdateSlowestCommitsWith(commit.Hash, dur)
+		s.timing.RegularCommitsTime += dur
+		s.timing.RegularCommitsCount++
+	}()
+
 	if len(commit.Parents) > 1 {
 		panic("not a regular commit")
 	}
@@ -310,6 +385,14 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 const deletedPrefix = "@@@del@@@"
 
 func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.Commit) (res Result, _ error) {
+	start := time.Now()
+	defer func() {
+		dur := time.Since(start)
+		s.timing.UpdateSlowestCommitsWith(commitHash, dur)
+		s.timing.MergesTime += dur
+		s.timing.MergesCount++
+	}()
+
 	//fmt.Println("processing merge commit", commitHash)
 
 	parentHashes := s.commitParents[commitHash]

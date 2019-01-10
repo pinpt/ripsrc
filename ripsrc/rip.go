@@ -62,11 +62,15 @@ const (
 )
 
 type Ripper struct {
-	commitMeta map[string]Commit
+	commitMeta        map[string]Commit
+	GitProcessTimings process.Timing
+	CodeInfoTimings   *CodeInfoTimings
 }
 
 func New() *Ripper {
-	return &Ripper{}
+	s := &Ripper{}
+	s.CodeInfoTimings = &CodeInfoTimings{}
+	return s
 }
 
 func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) error {
@@ -99,6 +103,8 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) 
 	}
 
 	<-done
+
+	s.GitProcessTimings = gitProcessor.Timing()
 
 	return nil
 }
