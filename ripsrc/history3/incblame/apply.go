@@ -88,38 +88,29 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 		rerr(errors.New("diff.IsBinary"))
 	}
 
-	res := make([]Line, len(file.Lines))
-	copy(res, file.Lines)
+	var res []Line
 
-	remLine := func(i int) {
-		if i > len(res) {
-			rerr(fmt.Errorf("trying to remove line which is not in blame, line %v blame %v", i, file))
-		}
-		res = append(res[:i], res[i+1:]...)
+	// copyRange copies the range of lines using indexes from old file
+	copyRange := func(from, to int) {
+		res = append(res, file.Lines[from:to]...)
 	}
-	addLine := func(i int, data []byte) {
-		if i > len(res) {
-			rerr(fmt.Errorf("trying to add line at index %v, which is not in blame blame %v", i, file))
-		}
-		if i == len(res) {
-			// perf improvement when adding at end, important when creating a new file
-			res = append(res, Line{Line: data, Commit: commit})
-			return
-		}
-		temp := []Line{}
-		temp = append(temp, res[:i]...)
-		temp = append(temp, Line{Line: data, Commit: commit})
-		if i != len(res) {
-			temp = append(temp, res[i:]...)
-		}
-		res = temp
+
+	// copyLine copies one line from old file using old file index
+	copyLine := func(i int) {
+		res = append(res, file.Lines[i])
+	}
+
+	addLine := func(data []byte) {
+		res = append(res, Line{Line: data, Commit: commit})
 	}
 
 	sort.Slice(diff.Hunks, func(i, j int) bool {
 		a := diff.Hunks[i]
 		b := diff.Hunks[j]
-		return a.Locations[0].Offset > b.Locations[0].Offset
+		return a.Locations[0].Offset < b.Locations[0].Offset
 	})
+
+	oldFileIndex := 0
 
 	for _, h := range diff.Hunks {
 		if len(h.Locations) == 0 {
@@ -129,10 +120,13 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 		scanner := bufio.NewScanner(bytes.NewReader(h.Data))
 		scanner.Buffer(nil, maxLine)
 
-		i := h.Locations[0].Offset - 1
-		if i == -1 {
-			i = 0
+		j := h.Locations[0].Offset - 1
+		if j == -1 {
+			j = 0
 		}
+
+		copyRange(oldFileIndex, j)
+		oldFileIndex = j
 
 		for scanner.Scan() {
 			b := scanner.Bytes()
@@ -145,14 +139,12 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 			data := b[1:]
 			switch op {
 			case ' ', '\t':
-				// no change
-				i++
+				copyLine(oldFileIndex)
+				oldFileIndex++
 			case '-':
-				remLine(i)
-				// no need to inc offset
+				oldFileIndex++
 			case '+':
-				addLine(i, data)
-				i++
+				addLine(data)
 			case 92:
 				if string(b) == "\\ No newline at end of file" {
 					// can ignore this, we do not case about end of file newline
@@ -164,10 +156,13 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 				rerr(fmt.Errorf("invalid patch prefix, line %s prefix %v commit %v", b, op, commit))
 			}
 		}
+
 		if err := scanner.Err(); err != nil {
 			rerr(err)
 		}
 	}
+
+	copyRange(oldFileIndex, len(file.Lines))
 
 	return Blame{Lines: res, Commit: commit}
 }

@@ -19,21 +19,6 @@ index 0000000..43f9419
 +}
 +`
 
-const basicDiff2 = `diff --git a/main.go b/main.go
-index 43f9419..1671209 100644
---- a/main.go
-+++ b/main.go
-@@ -1,8 +1,6 @@
-	package main
-	
--import "github.com/pinpt/ripsrc/cmd"
--
- func main() {
--       cmd.Execute()
-+  // do nothing
-	}
-`
-
 func TestApplyBasic1(t *testing.T) {
 	diff := Parse([]byte(basicDiff1))
 	c1 := "c1"
@@ -54,6 +39,21 @@ func TestApplyBasic1(t *testing.T) {
 
 	assertEqualFiles(t, f2, want)
 }
+
+const basicDiff2 = `diff --git a/main.go b/main.go
+index 43f9419..1671209 100644
+--- a/main.go
++++ b/main.go
+@@ -1,8 +1,6 @@
+	package main
+	
+-import "github.com/pinpt/ripsrc/cmd"
+-
+ func main() {
+-       cmd.Execute()
++  // do nothing
+	}
+`
 
 func TestApplyBasic2Regular(t *testing.T) {
 	c1 := "c1"
