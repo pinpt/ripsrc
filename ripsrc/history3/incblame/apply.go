@@ -101,7 +101,11 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 		if i > len(res) {
 			rerr(fmt.Errorf("trying to add line at index %v, which is not in blame blame %v", i, file))
 		}
-
+		if i == len(res) {
+			// perf improvement when adding at end, important when creating a new file
+			res = append(res, Line{Line: data, Commit: commit})
+			return
+		}
 		temp := []Line{}
 		temp = append(temp, res[:i]...)
 		temp = append(temp, Line{Line: data, Commit: commit})
