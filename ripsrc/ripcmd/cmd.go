@@ -159,7 +159,7 @@ var errRevParseFailed = errors.New("git rev-parse HEAD failed")
 
 func runOnRepo(ctx context.Context, wr io.Writer, repoDir string) (entries int, _ error) {
 	start := time.Now()
-	fmt.Fprintf(color.Output, "starting processing %v\n", color.GreenString(repoDir))
+	fmt.Fprintf(color.Output, "starting processing repo:%v\n", color.GreenString(repoDir))
 	if !hasHeadCommit(ctx, repoDir) {
 		fmt.Fprintf(wr, "git rev-parse HEAD failed, happens for empty repos, repo: %v \n", repoDir)
 		return 0, errRevParseFailed
@@ -176,7 +176,7 @@ func runOnRepo(ctx context.Context, wr io.Writer, repoDir string) (entries int, 
 			if blame.License != nil {
 				license = fmt.Sprintf("%v (%.0f%%)", color.RedString(blame.License.Name), 100*blame.License.Confidence)
 			}
-			fmt.Fprintf(color.Output, "[%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
+			fmt.Fprintf(color.Output, "[%s][%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.YellowString("%v", repoDir), color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
 		}
 		done <- true
 	}()
