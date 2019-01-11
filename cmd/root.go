@@ -21,6 +21,8 @@ var rootCmd = &cobra.Command{
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("starting ripsrc")
+		started := time.Now()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		// potentially enable profiling
@@ -77,7 +79,9 @@ var rootCmd = &cobra.Command{
 					filter.SHA = sha
 				}
 			}*/
-		var count int
+
+		count := 0
+		totalRepos := 0
 		createRepoProcessor := func(repo string, printname bool) (chan bool, chan ripsrc.BlameResult) {
 			resultsDone := make(chan bool, 1)
 			results := make(chan ripsrc.BlameResult, 10)
@@ -98,10 +102,11 @@ var rootCmd = &cobra.Command{
 			}()
 			return resultsDone, results
 		}
-		started := time.Now()
+
 		if f, err := os.Stat(filepath.Join(args[0], ".git")); err == nil && f.IsDir() {
 			resultsDone, results := createRepoProcessor("", false)
 			ripper := ripsrc.New()
+			totalRepos++
 			if err := ripper.Rip(ctx, args[0], results); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -122,6 +127,7 @@ var rootCmd = &cobra.Command{
 					start := count
 					ripper := ripsrc.New()
 					localstart := time.Now()
+					totalRepos++
 					if err := ripper.Rip(ctx, filepath.Dir(fd), results); err != nil {
 						fmt.Println(err)
 						os.Exit(1)
@@ -132,7 +138,8 @@ var rootCmd = &cobra.Command{
 				}
 			}
 		}
-		fmt.Printf("finished processing %d entries from %d directories in %v\n", count, len(args), time.Since(started))
+
+		fmt.Printf("finished processing %d entries from %d directories (%v repos) in %v\n", count, len(args), totalRepos, time.Since(started))
 	},
 }
 
