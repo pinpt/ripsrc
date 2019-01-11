@@ -3,6 +3,7 @@ package ripcmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -25,100 +26,118 @@ type Opts struct {
 }
 
 type Stats struct {
-	Repos      int
-	EmptyRepos int
-	Entries    int
+	Repos             int
+	SkippedEmptyRepos int
+	Entries           int
+}
+
+type RepoError struct {
+	Repo string
+	Err  error
 }
 
 func Run(ctx context.Context, out io.Writer, opts Opts) {
 	start := time.Now()
-	stats, err := runOnDirs(ctx, out, opts, opts.Dir, 1)
+	stats, repoErrs, err := runOnDirs(ctx, out, opts, opts.Dir, 1)
 	if err != nil {
 		fmt.Println("failed processing with err", err)
 		os.Exit(1)
 	}
-	if stats.Repos == 0 {
-		fmt.Println("failed processing, no git repos found in supplied dir:", opts.Dir)
+	if len(repoErrs) != 0 {
+		fmt.Fprintln(color.Output, color.RedString("failed processing, errors:"))
+		for _, err := range repoErrs {
+			fmt.Fprintln(color.Output, color.RedString("repo: %v err: %v\n", err.Repo, err.Err))
+		}
+		fmt.Fprintln(color.Output, color.RedString("failed processing"))
 		os.Exit(1)
 	}
-	if stats.EmptyRepos != 0 {
-		fmt.Fprintf(color.Output, "%v", color.RedString("Warning! Skipped %v empty repos\n", stats.EmptyRepos))
+	if stats.Repos == 0 {
+		fmt.Fprintln(color.Output, color.RedString("failed processing, no git repos found in supplied dir: %v", opts.Dir))
+		os.Exit(1)
 	}
-	fmt.Printf("finished processing repos %d entries %d in %v\n", stats.Repos, stats.Entries, time.Since(start))
+	if stats.SkippedEmptyRepos != 0 {
+		fmt.Fprintf(color.Output, "%v", color.YellowString("Warning! Skipped %v empty repos\n", stats.SkippedEmptyRepos))
+	}
+	fmt.Fprintf(color.Output, "%v", color.GreenString("Finished processing repos %d entries %d in %v\n", stats.Repos, stats.Entries, time.Since(start)))
 }
 
-func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurseLevels int) (stats Stats, _ error) {
+func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurseLevels int) (stats Stats, repoErrors []RepoError, rerr error) {
 	stat, err := os.Stat(dir)
 	if err != nil {
-		return stats, fmt.Errorf("can't stat passed dir, err: %v", err)
+		rerr = fmt.Errorf("can't stat passed dir, err: %v", err)
+		return
 	}
 	if !stat.IsDir() {
-		return stats, fmt.Errorf("passed dir is a file, expecting a dir")
+		rerr = fmt.Errorf("passed dir is a file, expecting a dir")
+		return
 	}
 	// check if contains .git
 	containsDotGit, err := dirContainsDir(dir, ".git")
 	if err != nil {
-		return stats, err
+		rerr = err
+		return
 	}
-	if containsDotGit {
+	run := func() {
 		entries, err := runOnRepo(ctx, wr, dir)
-		if err != nil {
-			return stats, err
+		if err != nil && err != errRevParseFailed {
+			repoErrors = []RepoError{{Repo: dir, Err: err}}
+			return
 		}
 		stats.Repos = 1
 		stats.Entries = entries
-		if entries == 0 {
-			stats.EmptyRepos++
+		if err == errRevParseFailed {
+			stats.SkippedEmptyRepos++
 		}
-		return stats, nil
+	}
+
+	if containsDotGit {
+		run()
+		return
 	}
 
 	loc, err := filepath.Abs(dir)
 	if err != nil {
-		return stats, fmt.Errorf("can't convert passed dir to absolute path, err: %v", err)
+		rerr = fmt.Errorf("can't convert passed dir to absolute path, err: %v", err)
+		return
 	}
 
 	if filepath.Ext(loc) == ".git" {
 		containsObjects, err := dirContainsDir(dir, "objects")
 		if err != nil {
-			return stats, err
+			rerr = err
+			return
 		}
 		if containsObjects {
-			entries, err := runOnRepo(ctx, wr, dir)
-			if err != nil {
-				return stats, err
-			}
-			stats.Repos = 1
-			stats.Entries = entries
-			if entries == 0 {
-				stats.EmptyRepos++
-			}
-			return stats, nil
+			run()
+			return
 		}
 	}
 
 	if recurseLevels == 0 {
-		return stats, nil
+		return
 	}
 
 	subs, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return stats, fmt.Errorf("can't read passed dir, err: %v", err)
+		rerr = fmt.Errorf("can't read passed dir, err: %v", err)
+		return
 	}
 
 	for _, sub := range subs {
 		if !sub.IsDir() {
 			continue
 		}
-		subEntries, err := runOnDirs(ctx, wr, opts, filepath.Join(dir, sub.Name()), recurseLevels-1)
+		subEntries, subErrs, err := runOnDirs(ctx, wr, opts, filepath.Join(dir, sub.Name()), recurseLevels-1)
+		repoErrors = append(repoErrors, subErrs...)
 		stats.Repos += subEntries.Repos
 		stats.Entries += subEntries.Entries
-		stats.EmptyRepos += subEntries.EmptyRepos
+		stats.SkippedEmptyRepos += subEntries.SkippedEmptyRepos
 		if err != nil {
-			return stats, err
+			rerr = err
+			return
 		}
 	}
-	return stats, nil
+	return
 }
 
 func dirContainsDir(dir string, sub string) (bool, error) {
@@ -136,13 +155,16 @@ func dirContainsDir(dir string, sub string) (bool, error) {
 	return true, nil
 }
 
+var errRevParseFailed = errors.New("git rev-parse HEAD failed")
+
 func runOnRepo(ctx context.Context, wr io.Writer, repoDir string) (entries int, _ error) {
 	start := time.Now()
 	fmt.Fprintf(color.Output, "starting processing %v\n", color.GreenString(repoDir))
 	if !hasHeadCommit(ctx, repoDir) {
-		fmt.Fprintf(color.Output, "repo is empty (or other problem running git rev-parse HEAD) %v\n", color.GreenString(repoDir))
-		return 0, nil
+		fmt.Fprintf(wr, "git rev-parse HEAD failed, happens for empty repos, repo: %v \n", repoDir)
+		return 0, errRevParseFailed
 	}
+
 	ripper := ripsrc.New()
 
 	res := make(chan ripsrc.BlameResult)
