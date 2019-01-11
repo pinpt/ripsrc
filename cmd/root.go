@@ -103,6 +103,35 @@ var rootCmd = &cobra.Command{
 			return resultsDone, results
 		}
 
+		bares, _ := cmd.Flags().GetBool("bares")
+		if bares {
+			entries, err := ioutil.ReadDir(args[0])
+			if err != nil {
+				panic(err)
+			}
+			for _, entry := range entries {
+				entryName := entry.Name()
+				if !entry.IsDir() || filepath.Ext(entryName) != ".git" {
+					continue
+				}
+				resultsDone, results := createRepoProcessor(entry.Name(), true)
+				start := count
+				ripper := ripsrc.New()
+				localstart := time.Now()
+				totalRepos++
+				if err := ripper.Rip(ctx, filepath.Join(args[0], entry.Name()), results); err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				<-resultsDone
+				fmt.Fprintf(color.Output, "finished repo processing for %v in %v. %d entries processed\n", color.HiGreenString(entryName), time.Since(localstart), count-start)
+			}
+
+			fmt.Printf("finished processing %d entries from %d directories (%v repos) in %v\n", count, len(args), totalRepos, time.Since(started))
+
+			return
+		}
+
 		if f, err := os.Stat(filepath.Join(args[0], ".git")); err == nil && f.IsDir() {
 			resultsDone, results := createRepoProcessor("", false)
 			ripper := ripsrc.New()
@@ -158,6 +187,8 @@ func Execute() {
 	rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
 	rootCmd.Flags().String("sha", "", "start streaming from sha")
 	rootCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
+	rootCmd.Flags().Bool("bares", false, "run dir containing bare repositories")
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
