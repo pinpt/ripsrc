@@ -1,7 +1,11 @@
 package ripsrc
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
@@ -73,8 +77,27 @@ func New() *Ripper {
 	return s
 }
 
+func hasHeadCommit(ctx context.Context, repoDir string) bool {
+	out := bytes.NewBuffer(nil)
+	c := exec.Command("git", "rev-parse", "HEAD")
+	c.Dir = repoDir
+	c.Stdout = out
+	c.Run()
+	res := strings.TrimSpace(out.String())
+	if len(res) != 40 {
+		return false
+	}
+	return true
+}
+
+var ErrNoHeadCommit = errors.New("can't get valid output from git rev-parse HEAD")
+
 func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) error {
 	defer close(res)
+
+	if !hasHeadCommit(ctx, repoDir) {
+		return ErrNoHeadCommit
+	}
 
 	err := s.getCommitInfo(ctx, repoDir)
 	if err != nil {
