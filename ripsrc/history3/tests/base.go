@@ -2,15 +2,19 @@ package tests
 
 import (
 	"archive/zip"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
+
+var gitCommand = "git"
 
 type Test struct {
 	t        *testing.T
@@ -40,6 +44,12 @@ func (s *Test) Run() []process.Result {
 	unzip(filepath.Join(".", "testdata", s.repoName+".zip"), repoDirWrapper)
 
 	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
+
+	ctx := context.Background()
+	err = gitexec.Prepare(ctx, gitCommand, repoDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	p := process.New(process.Opts{RepoDir: repoDir, DisableCache: true})
 	res, err := p.RunGetAll()
@@ -126,7 +136,8 @@ func assertResult(t *testing.T, want, got []process.Result) {
 				t.Fatalf("missing file %v commit %v\nwanted\n%v", filePath, commit, w.Files[filePath])
 			}
 			if !w.Files[filePath].Eq(gf) {
-				t.Fatalf("invalid patch for file %v commit %v, got\n%v\nwanted\n%v", filePath, commit, g.Files[filePath], w.Files[filePath])
+				t.Fatalf("invalid patch for file %v commit %v", filePath, commit)
+				//t.Fatalf("invalid patch for file %v commit %v, got\n%v\nwanted\n%v", filePath, commit, g.Files[filePath], w.Files[filePath])
 			}
 		}
 	}

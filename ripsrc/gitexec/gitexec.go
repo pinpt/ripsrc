@@ -118,7 +118,7 @@ func headCommit(ctx context.Context, gitCommand string, repoDir string) string {
 	c.Run()
 	res := strings.TrimSpace(out.String())
 	if len(res) != 40 {
-		panic("invalid head commit sha len")
+		return ""
 	}
 	return res
 }
