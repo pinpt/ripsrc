@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"sort"
 	"time"
 
@@ -701,7 +702,13 @@ func (s *Process) gitLogParents() (io.ReadCloser, error) {
 }
 
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, err
+	}
+
 	args := []string{
+		"-c", "core.attributesFile=" + dir,
 		"-c", "diff.renameLimit=10000",
 		"log",
 		"-p",

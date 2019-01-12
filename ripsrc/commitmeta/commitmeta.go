@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os/exec"
 	"path"
 	"regexp"
@@ -154,7 +155,14 @@ func (s *Processor) Run(res chan Commit) error {
 }
 
 func (s *Processor) gitLog() (io.ReadCloser, error) {
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, err
+	}
+
 	args := []string{
+		"-c", "core.attributesFile=" + dir,
+		"-c", "diff.renameLimit=10000",
 		"log",
 		"-c",
 		"--raw",
