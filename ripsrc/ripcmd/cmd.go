@@ -38,7 +38,7 @@ type RepoError struct {
 
 func Run(ctx context.Context, out io.Writer, opts Opts) {
 	start := time.Now()
-	stats, repoErrs, err := runOnDirs(ctx, out, opts, opts.Dir, 1)
+	stats, repoErrs, err := runOnDirs(ctx, out, opts, opts.Dir, 1, start)
 	if err != nil {
 		fmt.Println("failed processing with err", err)
 		os.Exit(1)
@@ -61,7 +61,7 @@ func Run(ctx context.Context, out io.Writer, opts Opts) {
 	fmt.Fprintf(color.Output, "%v", color.GreenString("Finished processing repos %d entries %d in %v\n", stats.Repos, stats.Entries, time.Since(start)))
 }
 
-func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurseLevels int) (stats Stats, repoErrors []RepoError, rerr error) {
+func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurseLevels int, start time.Time) (stats Stats, repoErrors []RepoError, rerr error) {
 	stat, err := os.Stat(dir)
 	if err != nil {
 		rerr = fmt.Errorf("can't stat passed dir, err: %v", err)
@@ -78,7 +78,7 @@ func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurse
 		return
 	}
 	run := func() {
-		entries, err := runOnRepo(ctx, wr, dir)
+		entries, err := runOnRepo(ctx, wr, dir, start)
 		if err != nil && err != errRevParseFailed {
 			repoErrors = []RepoError{{Repo: dir, Err: err}}
 			return
@@ -127,7 +127,7 @@ func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurse
 		if !sub.IsDir() {
 			continue
 		}
-		subEntries, subErrs, err := runOnDirs(ctx, wr, opts, filepath.Join(dir, sub.Name()), recurseLevels-1)
+		subEntries, subErrs, err := runOnDirs(ctx, wr, opts, filepath.Join(dir, sub.Name()), recurseLevels-1, start)
 		repoErrors = append(repoErrors, subErrs...)
 		stats.Repos += subEntries.Repos
 		stats.Entries += subEntries.Entries
@@ -157,7 +157,7 @@ func dirContainsDir(dir string, sub string) (bool, error) {
 
 var errRevParseFailed = errors.New("git rev-parse HEAD failed")
 
-func runOnRepo(ctx context.Context, wr io.Writer, repoDir string) (entries int, _ error) {
+func runOnRepo(ctx context.Context, wr io.Writer, repoDir string, globalStart time.Time) (entries int, _ error) {
 	start := time.Now()
 	fmt.Fprintf(color.Output, "starting processing repo:%v\n", color.GreenString(repoDir))
 	if !hasHeadCommit(ctx, repoDir) {
@@ -176,7 +176,8 @@ func runOnRepo(ctx context.Context, wr io.Writer, repoDir string) (entries int, 
 			if blame.License != nil {
 				license = fmt.Sprintf("%v (%.0f%%)", color.RedString(blame.License.Name), 100*blame.License.Confidence)
 			}
-			fmt.Fprintf(color.Output, "[%s][%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.YellowString("%v", repoDir), color.CyanString(blame.Commit.SHA[0:8]), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
+			timeSinceStartMin := int(time.Since(globalStart).Minutes())
+			fmt.Fprintf(color.Output, "[%s][%s][%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.YellowString("%v", repoDir), color.CyanString(blame.Commit.SHA[0:8]), color.YellowString("%vm", timeSinceStartMin), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
 		}
 		done <- true
 	}()

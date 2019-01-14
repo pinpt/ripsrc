@@ -1,0 +1,8 @@
+goos: darwin
+goarch: amd64
+pkg: github.com/pinpt/ripsrc/ripsrc/history3/incblame
+BenchmarkApplyNewLargeFile-4          	     100	   1682960 ns/op
+BenchmarkApplyLargeRemoval-4          	       1	 109322621 ns/op
+BenchmarkApplyLargeAdditionsStart-4   	       1	1396813333 ns/op
+PASS
+ok  	github.com/pinpt/ripsrc/ripsrc/history3/incblame	1.776s
