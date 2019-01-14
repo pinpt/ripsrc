@@ -9,7 +9,7 @@ import (
 
 func TestMergeCreatedAndDeletedInBranch(t *testing.T) {
 	test := NewTest(t, "merge_created_and_deleted_in_branch")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "bed98c3d7630be04af2ed51f81c6c01ded6a735f"
 	c2 := "1e186471594426718f664f3cc252f72161427e31"

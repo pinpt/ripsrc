@@ -155,13 +155,18 @@ func (s *Processor) Run(res chan Commit) error {
 }
 
 func (s *Processor) gitLog() (io.ReadCloser, error) {
-	dir, err := ioutil.TempDir("", "")
+	// empty file at tem location to set an empty attributesFile
+	f, err := ioutil.TempFile("", "ripsrc")
+	if err != nil {
+		return nil, err
+	}
+	err = f.Close()
 	if err != nil {
 		return nil, err
 	}
 
 	args := []string{
-		"-c", "core.attributesFile=" + dir,
+		"-c", "core.attributesFile=" + f.Name(),
 		"-c", "diff.renameLimit=10000",
 		"log",
 		"-c",

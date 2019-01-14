@@ -11,7 +11,7 @@ import (
 // If the file in repo was a binary at some point and then switched to text and was modified, then git log with patches does not contain the full file content.
 func TestBinToReg(t *testing.T) {
 	test := NewTest(t, "bin_to_reg")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "906dc31df31485790f2c63f94cf13404897ab0f3"
 	c2 := "cb569181179ab53951f30cf9cd447f2f615b2439"

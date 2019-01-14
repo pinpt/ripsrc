@@ -9,7 +9,7 @@ import (
 
 func TestBasicAddFile(t *testing.T) {
 	test := NewTest(t, "basic_add_file")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "dfc1c9aede4d1e85843da10950bc13015c133a90"
 	c2 := "8758ef8c99c61d0ad117b295c377b144dd1ef3be"

@@ -9,7 +9,7 @@ import (
 
 func TestBinFromReg(t *testing.T) {
 	test := NewTest(t, "bin_from_reg")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "4100c0083e5d67800ed2353d26ec40fa040c4dca"
 	c2 := "e82bcbdee6ea5093f1cb04a80ffcd3177a399cdb"

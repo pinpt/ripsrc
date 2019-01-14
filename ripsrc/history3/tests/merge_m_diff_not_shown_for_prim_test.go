@@ -13,7 +13,7 @@ import (
 func TestMergeMDiffNotShownForPrim(t *testing.T) {
 	t.Skip("test is not correct WIP")
 	test := NewTest(t, "merge_m_diff_not_shown_for_prim")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "f41bd930ef17b6d2f06eb22847bd78943464df65"
 	c2 := "13dcd0e9ca3d4ed8fe62ec5ad46295eafe9a14ea"

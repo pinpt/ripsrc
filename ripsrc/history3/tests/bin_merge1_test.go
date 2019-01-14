@@ -9,7 +9,7 @@ import (
 
 func TestBinMerge1(t *testing.T) {
 	test := NewTest(t, "bin_merge1")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "0fdd9a3d2d11961f864fcbf60fbade8d2046f804"
 	c2 := "bb9074ba11ee60b7376db008d7d85409aedf812f"

@@ -29,7 +29,7 @@ func NewTest(t *testing.T, repoName string) *Test {
 	return s
 }
 
-func (s *Test) Run() []process.Result {
+func (s *Test) Run(opts *process.Opts) []process.Result {
 	t := s.t
 	dir, err := ioutil.TempDir("", "ripsrc-test-")
 	if err != nil {
@@ -51,7 +51,13 @@ func (s *Test) Run() []process.Result {
 		t.Fatal(err)
 	}
 
-	p := process.New(process.Opts{RepoDir: repoDir, DisableCache: true})
+	if opts == nil {
+		opts = &process.Opts{}
+	}
+	opts.RepoDir = repoDir
+	opts.DisableCache = true
+
+	p := process.New(*opts)
 	res, err := p.RunGetAll()
 	if err != nil {
 		t.Fatal(err)

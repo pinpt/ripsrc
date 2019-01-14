@@ -9,7 +9,7 @@ import (
 
 func TestMergeBasic2(t *testing.T) {
 	test := NewTest(t, "merge_basic2")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "8594b52d09d3df10fb392a38caa4805a756c8b26"
 	c2 := "3c025938d44df68a47075364059ac9f293467826" // merge parent 2

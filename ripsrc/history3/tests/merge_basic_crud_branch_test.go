@@ -9,7 +9,7 @@ import (
 
 func TestMergeBasicCrudBranch(t *testing.T) {
 	test := NewTest(t, "merge_basic_crud_branch")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "b5c42f70c2bf950cb8c5cbcaff87027b5e30fe67"
 	c2 := "142b866db5e367b013b5a8acb5f7a959eb1b7706"

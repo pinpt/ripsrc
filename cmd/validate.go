@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+/*
 var manuallyChecked = map[string]bool{
 	// https://github.com/vuejs/vue repo ~3k commits ~1k pull reqs
 	// block is repeated and both attributions are ok
@@ -28,6 +29,9 @@ var manuallyChecked = map[string]bool{
 	// both files exist
 	"test/ssr/fixtures/async-bar.js": true,
 }
+*/
+
+var manuallyChecked = map[string]bool{}
 
 var validateIncBlameCmd = &cobra.Command{
 	Use:  "validate_inc_blame <repodirs...>",
@@ -36,7 +40,11 @@ var validateIncBlameCmd = &cobra.Command{
 		for _, repoDir := range args {
 			fmt.Println("running on repo", repoDir)
 
-			pr := process.New(process.Opts{RepoDir: repoDir})
+			opts := process.Opts{}
+			opts.RepoDir = repoDir
+			opts.CommitFromIncl, _ = cmd.Flags().GetString("commit-from-incl")
+
+			pr := process.New(opts)
 
 			res := make(chan process.Result)
 			done := make(chan bool)
@@ -119,5 +127,6 @@ var validateIncBlameCmd = &cobra.Command{
 
 func RegisterIncBlame() {
 	cmd := validateIncBlameCmd
+	cmd.Flags().String("commit-from-incl", "", "start from specific commit (inclusive)")
 	rootCmd.AddCommand(cmd)
 }

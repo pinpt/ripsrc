@@ -10,6 +10,7 @@ import (
 
 	"github.com/pinpt/ripsrc/ripsrc/gitblame2"
 
+	"github.com/pinpt/ripsrc/ripsrc/history3/process/gitblamecommit"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/parentsp"
 
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
@@ -39,6 +40,9 @@ type Process struct {
 
 type Opts struct {
 	RepoDir string
+	// CommitFromIncl is commit from which processing should start. Inclusive.
+	// WIP. Does not work correctly at the moment.
+	CommitFromIncl string
 	// DisableCache is unused.
 	DisableCache bool
 }
@@ -85,10 +89,16 @@ func (s *Process) Run(resChan chan Result) error {
 	}
 
 	defer r.Close()
+
 	commits := make(chan parser.Commit)
 	p := parser.New(r)
 
+	done := make(chan bool)
+
 	go func() {
+		defer func() {
+			done <- true
+		}()
 		err := p.Run(commits)
 		if err != nil {
 			panic(err)
@@ -103,6 +113,8 @@ func (s *Process) Run(resChan chan Result) error {
 	if len(s.mergeParts) > 0 {
 		s.processGotMergeParts(resChan)
 	}
+
+	<-done
 
 	//fmt.Println("max len of stored tree", s.maxLenOfStoredTree)
 	//fmt.Println("repo len", len(s.repo))
@@ -298,10 +310,14 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			// rename with no patch
 			if len(diff.Hunks) == 0 {
 				parent := commit.Parents[0]
-				pb, ok := s.repo[parent][diff.PathPrev]
-				if !ok {
+				pb := s.repoGetFile(parent, diff.PathPrev)
+				if pb == nil {
+					parentCommit, ok := s.repoGetCommit(parent)
+					if !ok {
+						panic("parent not found")
+					}
 					filesInParent := []string{}
-					for f := range s.repo[parent] {
+					for f := range parentCommit {
 						filesInParent = append(filesInParent, f)
 					}
 					panic(fmt.Errorf("regular commit %v, file rename from %v to %v, file not found in parent %v files in parent: %v", commit.Hash, diff.PathPrev, diff.Path, parent, filesInParent))
@@ -329,9 +345,9 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			case 0: // initial commit, no parent
 			case 1: // regular commit
 				parentHash := commit.Parents[0]
-				pc, ok := s.repo[parentHash]
+				pc, ok := s.repoGetCommit(parentHash)
 				if !ok {
-					panic("parent commit not found")
+					panic(fmt.Errorf("parent commit not found: %v", parentHash))
 				}
 				pb, ok := pc[diff.PathPrev]
 				// file may not be in parent if this is create
@@ -370,7 +386,10 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 
 	// copy unchanged from prev
 	p := commit.Parents[0]
-	files := s.repo[p]
+	files, ok := s.repoGetCommit(p)
+	if !ok {
+		panic("commit missing")
+	}
 	for path, blame := range files {
 		// was in the diff changes, nothing to do
 		if _, ok := res.Files[path]; ok {
@@ -483,9 +502,9 @@ EACHFILE:
 				continue
 			}
 			parent := parentHashes[i]
-			pb, ok := s.repo[parent][diff.PathPrev]
-			if !ok {
-				panic("parent not found")
+			pb := s.repoGetFile(parent, diff.PathPrev)
+			if pb == nil {
+				panic("parent file not found")
 			}
 			if pb.IsBinary {
 				binParentsWithDiffs++
@@ -523,8 +542,8 @@ EACHFILE:
 			if diff == nil {
 				// same as parent
 				parent := parentHashes[i]
-				pb, ok := s.repo[parent][k]
-				if ok {
+				pb := s.repoGetFile(parent, k)
+				if pb != nil {
 					// exacly the same as parent, no changes
 					s.repoSave(commitHash, k, pb)
 					continue EACHFILE
@@ -537,8 +556,8 @@ EACHFILE:
 			if diff == nil {
 				// no change use prev
 				parentHash := parentHashes[i]
-				parentBlame, ok := s.repo[parentHash][k]
-				if !ok {
+				parentBlame := s.repoGetFile(parentHash, k)
+				if parentBlame == nil {
 					panic(fmt.Errorf("merge: no change for file recorded, but parent does not contain blame information file:%v merge:%v parent:%v", k, commitHash, parentHash))
 				}
 				parents = append(parents, *parentBlame)
@@ -554,8 +573,8 @@ EACHFILE:
 			}
 
 			parentHash := parentHashes[i]
-			parentBlame, ok := s.repo[parentHash][pathPrev]
-			if !ok {
+			parentBlame := s.repoGetFile(parentHash, pathPrev)
+			if parentBlame == nil {
 				panic("parent blame not found")
 			}
 			parents = append(parents, *parentBlame)
@@ -580,7 +599,11 @@ EACHFILE:
 	// get a list of all files in all parents
 	files = map[string]bool{}
 	for _, p := range parentHashes {
-		for f := range s.repo[p] {
+		commit, ok := s.repoGetCommit(p)
+		if !ok {
+			panic("commit not found")
+		}
+		for f := range commit {
 			files[f] = true
 		}
 	}
@@ -589,13 +612,13 @@ EACHFILE:
 
 	for f := range files {
 		// already added above
-		if _, ok := s.repo[commitHash][f]; ok {
+		if bl := s.repoGetFile(commitHash, f); bl != nil {
 			continue
 		}
 
 		var candidates []*incblame.Blame
 		for _, p := range parentHashes {
-			if b, ok := s.repo[p][f]; ok {
+			if b := s.repoGetFile(p, f); b != nil {
 				candidates = append(candidates, b)
 			}
 		}
@@ -637,7 +660,10 @@ EACHFILE:
 		}
 		if res == nil {
 			// all are unchanged
-			res = s.repo[root][f]
+			res = s.repoGetFile(root, f)
+			if res == nil {
+				panic("unchanged file not found")
+			}
 		}
 		s.repoSave(commitHash, f, res)
 
@@ -660,6 +686,32 @@ func (s *Process) slowGitBlame(commitHash string, filePath string) (res incblame
 		res.Lines = append(res.Lines, l2)
 	}
 	return
+}
+
+func (s *Process) repoGetCommit(commit string) (_ map[string]*incblame.Blame, ok bool) {
+	if s.opts.CommitFromIncl == "" {
+		res, ok := s.repo[commit]
+		return res, ok
+	}
+	if _, ok := s.repo[commit]; !ok {
+		// using commit that was not yet loaded
+		fmt.Println("populating blame for unloaded commit", commit)
+		bl, err := gitblamecommit.Blame(context.Background(), s.opts.RepoDir, commit)
+		if err != nil {
+			panic(err)
+		}
+		s.repo[commit] = bl
+	}
+	res, ok := s.repo[commit]
+	return res, ok
+}
+
+func (s *Process) repoGetFile(commitHash, path string) *incblame.Blame {
+	commit, ok := s.repoGetCommit(commitHash)
+	if !ok {
+		return nil
+	}
+	return commit[path]
 }
 
 func (s *Process) repoSave(commit, path string, blame *incblame.Blame) {
@@ -702,13 +754,18 @@ func (s *Process) gitLogParents() (io.ReadCloser, error) {
 }
 
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
-	dir, err := ioutil.TempDir("", "")
+	// empty file at tem location to set an empty attributesFile
+	f, err := ioutil.TempFile("", "ripsrc")
+	if err != nil {
+		return nil, err
+	}
+	err = f.Close()
 	if err != nil {
 		return nil, err
 	}
 
 	args := []string{
-		"-c", "core.attributesFile=" + dir,
+		"-c", "core.attributesFile=" + f.Name(),
 		"-c", "diff.renameLimit=10000",
 		"log",
 		"-p",
@@ -717,6 +774,10 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		"--reverse",
 		"--no-abbrev-commit",
 		"--pretty=short",
+	}
+
+	if s.opts.CommitFromIncl != "" {
+		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
 	}
 
 	ctx := context.Background()

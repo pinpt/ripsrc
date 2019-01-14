@@ -9,7 +9,7 @@ import (
 
 func TestBasic1(t *testing.T) {
 	test := NewTest(t, "basic")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "b4dadc54e312e976694161c2ac59ab76feb0c40d"
 	c2 := "69ba50fff990c169f80de96674919033a0a9b66d"

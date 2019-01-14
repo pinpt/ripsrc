@@ -12,7 +12,7 @@ import (
 // a different branch instead of master.
 func TestDefaultNonMaster(t *testing.T) {
 	test := NewTest(t, "default_non_master")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "6342b6a4efeb897f54d60bcca426af843ac85c16"
 

@@ -9,7 +9,7 @@ import (
 
 func TestMergeUnchanged(t *testing.T) {
 	test := NewTest(t, "merge_unchanged")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "c17463b8e0d5890d2a6fc9e20507ab7e985e2007"
 	c2 := "34fad1eecfd082fb0845d148696e2993f888e4d2"

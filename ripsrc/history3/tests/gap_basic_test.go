@@ -10,7 +10,7 @@ import (
 // TestGapBasic checks that blame works correctly for files not touched for a few commits.
 func TestGapBasic(t *testing.T) {
 	test := NewTest(t, "gap_basic")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "054bd3ca722948e5299bfda4d7c96f312f9c3b39"
 	c2 := "06c4e4db2f222a663da1a5bb5afb1fa41e075f50"

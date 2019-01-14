@@ -9,7 +9,7 @@ import (
 
 func TestDeletedFiles(t *testing.T) {
 	test := NewTest(t, "deleted_files")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "624f3a74bf727e365cfbd090b9b993ddded0e1ea"
 	c2 := "9c7629df59b283bdec8b9705cb17c822652f6fae"

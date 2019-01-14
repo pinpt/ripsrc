@@ -9,7 +9,7 @@ import (
 
 func TestSpaceInNameWithContent(t *testing.T) {
 	test := NewTest(t, "space_in_name_with_content")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "0f801cc6cdb7a11e66e1a615940ed4e74bdbcff6"
 	c2 := "66461ee9ddc0dbecbf4a681e0636d266c14a49c8"

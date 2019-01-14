@@ -9,7 +9,7 @@ import (
 
 func TestBasicRename(t *testing.T) {
 	test := NewTest(t, "basic_rename")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "f4ffbf5c5bfa147bd3792f4b3062802c8eaf65e2"
 	c2 := "a6f2b499898c44372395878fdb527e028f63244b"

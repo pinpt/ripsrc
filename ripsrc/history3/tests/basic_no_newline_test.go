@@ -9,7 +9,7 @@ import (
 
 func TestBasicNoNewline(t *testing.T) {
 	test := NewTest(t, "basic_no_newline")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "520bd1198f9640c56e5245c60ed920364770452b"
 	c2 := "a4bb5c8a7a31319078ad20e809b4d195ec26d5f4"

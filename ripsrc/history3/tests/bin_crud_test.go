@@ -9,7 +9,7 @@ import (
 
 func TestBinCrud(t *testing.T) {
 	test := NewTest(t, "bin_crud")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "2928e513831e71431d6b8003f38873a69c738a57"
 	c2 := "3a92708066c7e6994c3f4184071a33c120dee75d"

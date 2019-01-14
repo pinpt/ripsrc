@@ -11,7 +11,7 @@ import (
 // Commit 2 was commited using date in the future.
 func TestCommitOrder2(t *testing.T) {
 	test := NewTest(t, "commit_order2")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "d1ae279323d0c7bc9fe9ee101edeccdf9d992412"
 	c2 := "781215b9c139709e2d21130ddeb2e2ff8c2bbf9a"

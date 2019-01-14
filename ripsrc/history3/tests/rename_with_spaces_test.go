@@ -9,7 +9,7 @@ import (
 
 func TestRenameWithSpaces(t *testing.T) {
 	test := NewTest(t, "rename_with_spaces")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "550a9f28d5f740e599c2a8c213d9370be528936a"
 	c2 := "5696bd8f1ee3e5979a5d36ae17039a7e24084abb"

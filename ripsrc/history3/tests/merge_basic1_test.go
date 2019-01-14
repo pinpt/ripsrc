@@ -9,7 +9,7 @@ import (
 
 func TestMergeBasic1(t *testing.T) {
 	test := NewTest(t, "merge_basic")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "cb78f81991af4120b649c5e2ae18cceba598220a"
 	c2 := "a08d204ee5913986294000e1280e7ad3484098e3"

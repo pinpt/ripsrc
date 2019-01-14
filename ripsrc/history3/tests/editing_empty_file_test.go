@@ -9,7 +9,7 @@ import (
 
 func TestEditingEmptyFile(t *testing.T) {
 	test := NewTest(t, "editing_empty_file")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "394f33a2064f838495e752d5d895c81be476b546"
 	c2 := "ede4adefcb25f43033622103f1bf2bf586b4b6f7"

@@ -9,7 +9,7 @@ import (
 
 func TestMergeBranchSelect(t *testing.T) {
 	test := NewTest(t, "merge_branch_select")
-	got := test.Run()
+	got := test.Run(nil)
 
 	c1 := "34bc624cce01e974960ff11aaaf7b1bcb1cac189"
 	c2 := "b6f00a92a3eb5b5df5574a192853ac68b9d05280"

@@ -36,7 +36,7 @@ func ApplyMerge(parents []Blame, diffs []Diff, commit string, fileForDebug strin
 	}
 	for _, c := range cand {
 		if len(c.Lines) != len(cand[0].Lines) {
-			panic(fmt.Errorf("not all resulting blames have the same num of lines %v", lenLines))
+			panic(fmt.Errorf("not all resulting blames have the same num of file:%v lines:%v", fileForDebug, lenLines))
 		}
 	}
 
