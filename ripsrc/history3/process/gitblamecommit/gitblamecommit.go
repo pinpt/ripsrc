@@ -15,7 +15,10 @@ import (
 
 var concurrency = 2 * runtime.NumCPU()
 
-func Blame(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
+// Another approach to running blames on demand only
+// Could lead to unpredictable performance.
+// Would also lose changes in merges.
+func Blame2(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
 	files, err := listOfFiles(ctx, repoDir, commitHash)
 	if err != nil {
 		return nil, err
@@ -30,7 +33,7 @@ func Blame(ctx context.Context, repoDir string, commitHash string) (map[string]*
 	return res, nil
 }
 
-func Blame2(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
+func Blame(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
 	files, err := listOfFiles(ctx, repoDir, commitHash)
 	if err != nil {
 		return nil, err
