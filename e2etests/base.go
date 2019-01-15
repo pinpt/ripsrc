@@ -43,7 +43,7 @@ func (s *Test) Run() []ripsrc.BlameResult {
 
 	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
 
-	res, err := ripsrc.New().RipSlice(context.Background(), repoDir)
+	res, err := ripsrc.New().RipSlice(context.Background(), repoDir, nil)
 	if err != nil {
 		t.Fatal("Rip returned error", err)
 	}

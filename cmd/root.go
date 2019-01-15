@@ -18,6 +18,7 @@ var rootCmd = &cobra.Command{
 		defer cancel()
 		opts := ripcmd.Opts{}
 		opts.Dir = args[0]
+		opts.CommitFromIncl, _ = cmd.Flags().GetString("sha")
 		ripcmd.Run(ctx, os.Stdout, opts)
 	},
 }
@@ -29,7 +30,7 @@ func Execute() {
 
 	//rootCmd.Flags().String("include", "", "include filter as a regular expression")
 	//rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
-	//rootCmd.Flags().String("sha", "", "start streaming from sha")
+	rootCmd.Flags().String("sha", "", "start streaming from sha")
 	//rootCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
 	//rootCmd.Flags().Bool("bares", false, "run dir containing bare repositories")
 

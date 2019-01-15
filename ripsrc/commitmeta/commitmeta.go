@@ -17,15 +17,21 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 )
 
+type Opts struct {
+	CommitFromIncl string
+}
+
 type Processor struct {
 	repoDir    string
 	gitCommand string
+	opts       Opts
 }
 
-func New(repoDir string) *Processor {
+func New(repoDir string, opts Opts) *Processor {
 	s := &Processor{
 		repoDir:    repoDir,
 		gitCommand: "git",
+		opts:       opts,
 	}
 	return s
 }
@@ -174,6 +180,10 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--reverse",
 		"--numstat",
 		"--pretty=format:!SHA: %H%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
+	}
+
+	if s.opts.CommitFromIncl != "" {
+		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
 	}
 
 	return gitexec.ExecPiped(context.Background(), s.gitCommand, s.repoDir, args)

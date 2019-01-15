@@ -75,19 +75,27 @@ func New() *Ripper {
 	return s
 }
 
+type RipOpts struct {
+	CommitFromIncl string
+}
+
 var ErrNoHeadCommit = errors.New("can't get valid output from git rev-parse HEAD")
 
 var gitCommand = "git"
 
-func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) error {
+func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, opts *RipOpts) error {
 	defer close(res)
+
+	if opts == nil {
+		opts = &RipOpts{}
+	}
 
 	err := gitexec.Prepare(ctx, gitCommand, repoDir)
 	if err != nil {
 		return err
 	}
 
-	err = s.getCommitInfo(ctx, repoDir)
+	err = s.getCommitInfo(ctx, repoDir, opts)
 	if err != nil {
 		panic(err)
 	}
@@ -107,7 +115,9 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) 
 		done <- true
 	}()
 
-	gitProcessor := process.New(process.Opts{RepoDir: repoDir})
+	processOpts := process.Opts{RepoDir: repoDir}
+	processOpts.CommitFromIncl = opts.CommitFromIncl
+	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)
 	if err != nil {
 		return err
@@ -120,7 +130,7 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult) 
 	return nil
 }
 
-func (s *Ripper) RipSlice(ctx context.Context, repoDir string) (res []BlameResult, _ error) {
+func (s *Ripper) RipSlice(ctx context.Context, repoDir string, opts *RipOpts) (res []BlameResult, _ error) {
 	resChan := make(chan BlameResult)
 	done := make(chan bool)
 	go func() {
@@ -129,7 +139,7 @@ func (s *Ripper) RipSlice(ctx context.Context, repoDir string) (res []BlameResul
 		}
 		done <- true
 	}()
-	err := s.Rip(ctx, repoDir, resChan)
+	err := s.Rip(ctx, repoDir, resChan, opts)
 	<-done
 	return res, err
 }

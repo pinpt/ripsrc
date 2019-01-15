@@ -44,7 +44,7 @@ func (s *Test) Run() []commitmeta.Commit {
 
 	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
 
-	p := commitmeta.New(repoDir)
+	p := commitmeta.New(repoDir, commitmeta.Opts{})
 	res, err := p.RunSlice()
 	if err != nil {
 		t.Fatal(err)

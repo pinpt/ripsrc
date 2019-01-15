@@ -23,6 +23,9 @@ type Opts struct {
 	// If the dir name ends with .git and has objects dir inside it will be assumed to be bare repo and processed.
 	// If neither of this is true if will process containing dirs following the same algo.
 	Dir string
+
+	// CommitFromIncl starts from specific commit (inclusive). May also include some previous commits.
+	CommitFromIncl string
 }
 
 type Stats struct {
@@ -78,7 +81,7 @@ func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurse
 		return
 	}
 	run := func() {
-		entries, err := runOnRepo(ctx, wr, dir, start)
+		entries, err := runOnRepo(ctx, wr, opts, dir, start)
 		if err != nil && err != errRevParseFailed {
 			repoErrors = []RepoError{{Repo: dir, Err: err}}
 			return
@@ -157,7 +160,7 @@ func dirContainsDir(dir string, sub string) (bool, error) {
 
 var errRevParseFailed = errors.New("git rev-parse HEAD failed")
 
-func runOnRepo(ctx context.Context, wr io.Writer, repoDir string, globalStart time.Time) (entries int, _ error) {
+func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, globalStart time.Time) (entries int, _ error) {
 	start := time.Now()
 	fmt.Fprintf(color.Output, "starting processing repo:%v\n", color.GreenString(repoDir))
 	if !hasHeadCommit(ctx, repoDir) {
@@ -182,7 +185,9 @@ func runOnRepo(ctx context.Context, wr io.Writer, repoDir string, globalStart ti
 		done <- true
 	}()
 
-	err := ripper.Rip(ctx, repoDir, res)
+	ripOpts := &ripsrc.RipOpts{}
+	ripOpts.CommitFromIncl = opts.CommitFromIncl
+	err := ripper.Rip(ctx, repoDir, res, ripOpts)
 	<-done
 
 	if err != nil {
