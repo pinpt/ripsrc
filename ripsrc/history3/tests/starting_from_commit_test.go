@@ -8,6 +8,7 @@ import (
 )
 
 func TestStartFromCommit1(t *testing.T) {
+	t.Skip("WIP")
 	test := NewTest(t, "starting_from_commit")
 	got := test.Run(&process.Opts{CommitFromIncl: "2124437117d4fe0ac185993e103627bc1d3d848c"})
 
