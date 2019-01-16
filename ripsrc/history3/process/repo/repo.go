@@ -2,7 +2,10 @@ package repo
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
+	"runtime"
+	"runtime/debug"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo/disk"
@@ -46,6 +49,9 @@ func NewFromCheckpoint(checkpointDir string, lastProcessedCommit string) (*Repo,
 		return nil, err
 	}
 	s.fromCheckpoint = lastProcessedCommit
+
+	s.readCheckpoint()
+
 	return s, nil
 }
 
@@ -93,7 +99,7 @@ func (s *Repo) Unload(commit string) {
 
 func (s *Repo) WriteCheckpoint() error {
 	data := s.SerializeData()
-	data2 := disk.Data{}
+	data2 := &disk.Data{}
 	for ch, commit := range data.Data {
 		for fp, b := range commit {
 			r := disk.DataRow{}
@@ -103,27 +109,75 @@ func (s *Repo) WriteCheckpoint() error {
 			data2.Data = append(data2.Data, r)
 		}
 	}
-	for p, b := range data.Blames {
-		r := disk.Blame{}
-		r.Pointer = p
-		r.Commit = b.Commit
-		r.LinePointers = b.LinePointers
-		r.IsBinary = b.IsBinary
-		data2.Blames = append(data2.Blames, r)
+	for _, obj := range data.Blames {
+		data2.Blames = append(data2.Blames, obj)
 	}
-	for p, l := range data.Lines {
-		r := disk.Line{}
-		r.Pointer = p
-		r.Commit = l.Commit
-		r.LineDataPointer = l.LineDataPointer
-		data2.Lines = append(data2.Lines, r)
+	for _, obj := range data.Lines {
+		data2.Lines = append(data2.Lines, obj)
 	}
-	for p, b := range data.LineData {
-		r := disk.LineData{}
-		r.Pointer = p
-		r.Data = b
-		data2.LineData = append(data2.LineData, r)
+	for _, obj := range data.LineData {
+		data2.LineData = append(data2.LineData, obj)
 	}
+	return msgpWriteToFile(filepath.Join(s.dir, "checkpoint.data"), data2)
+}
+
+func (s *Repo) readCheckpoint() error {
+	data := &disk.Data{}
+	err := msgpReadFromFile(filepath.Join(s.dir, "checkpoint.data"), data)
+	if err != nil {
+		panic(err)
+	}
+	lineData := map[uint64][]byte{}
+	lines := map[uint64]*incblame.Line{}
+	blames := map[uint64]*incblame.Blame{}
+	i := 0
+	for _, obj := range data.LineData {
+		lineData[obj.Pointer] = obj.Data
+		i++
+	}
+	fmt.Println("loaded line data", i)
+	i = 0
+	for _, obj := range data.Lines {
+		line := &incblame.Line{}
+		line.Commit = obj.Commit
+		v, ok := lineData[obj.LineDataPointer]
+		if !ok {
+			panic("line data")
+		}
+		line.Line = v
+		lines[obj.Pointer] = line
+		i++
+	}
+	fmt.Println("loaded lines", i)
+	i = 0
+	for _, obj := range data.Blames {
+		bl := &incblame.Blame{}
+		bl.Commit = obj.Commit
+		bl.IsBinary = obj.IsBinary
+		for _, lp := range obj.LinePointers {
+			line, ok := lines[lp]
+			if !ok {
+				panic("line")
+			}
+			bl.Lines = append(bl.Lines, line)
+		}
+		blames[obj.Pointer] = bl
+		i++
+	}
+	fmt.Println("loaded unique blames", i)
+	i = 0
+	for _, file := range data.Data {
+		if _, ok := s.data[file.Commit]; !ok {
+			s.data[file.Commit] = map[string]*incblame.Blame{}
+		}
+		bl, ok := blames[file.BlamePointer]
+		if !ok {
+			panic(bl)
+		}
+		s.data[file.Commit][file.Path] = bl
+		i++
+	}
+	fmt.Println("loaded blames", i)
 	return nil
 }
 
@@ -132,71 +186,65 @@ type sData struct {
 	Data     map[string]map[string]uint64
 	Blames   map[uint64]sBlame
 	Lines    map[uint64]sLine
-	LineData map[uint64][]byte
+	LineData map[uint64]sLineData
 }
 
-type sDataRow struct {
-	Commit       string
-	Path         string
-	BlamePointer uint64
-}
+type sDataRow = disk.DataRow
 
-type sBlame struct {
-	Commit       string
-	LinePointers []uint64
-	IsBinary     bool
-}
+type sBlame = disk.Blame
 
-type sLine struct {
-	Commit          string
-	LineDataPointer uint64
-}
+type sLine = disk.Line
+
+type sLineData = disk.LineData
 
 func (s *Repo) SerializeData() (res sData) {
-	return res
+	runtime.GC()
+	debug.SetGCPercent(-1)
+	defer debug.SetGCPercent(100)
 
-	/*
-		runtime.GC()
-		debug.SetGCPercent(-1)
-		defer debug.SetGCPercent(100)
+	res.Data = map[string]map[string]uint64{}
+	res.Blames = map[uint64]sBlame{}
+	res.Lines = map[uint64]sLine{}
+	res.LineData = map[uint64]sLineData{}
 
-		res.Data = map[string]map[string]uint64{}
-
-		for ch, commit := range s.data {
-			res.Data[ch] = map[string]uint64{}
-			for fp, file := range commit {
-				blp := pointer(file)
-				if _, ok := res.Blames[blp]; ok {
-					res.Data[ch][fp] = blp
+	for ch, commit := range s.data {
+		res.Data[ch] = map[string]uint64{}
+		for fp, file := range commit {
+			blp := pointer(file)
+			if _, ok := res.Blames[blp]; ok {
+				res.Data[ch][fp] = blp
+				continue
+			}
+			bl := sBlame{}
+			bl.Pointer = blp
+			bl.Commit = file.Commit
+			bl.IsBinary = file.IsBinary
+			bl.LinePointers = make([]uint64, 0, len(file.Lines))
+			for _, l := range file.Lines {
+				lp := pointer(l)
+				if _, ok := res.Lines[lp]; ok {
+					bl.LinePointers = append(bl.LinePointers, lp)
 					continue
 				}
-				bl := sBlame{}
-				bl.Commit = file.Commit
-				bl.IsBinary = file.IsBinary
-				bl.LinePointers = make([]uint64, 0, len(file.Lines))
-				for _, l := range file.Lines {
-					lp := pointer(l)
-					if _, ok := res.Lines[lp]; ok {
-						bl.LinePointers = append(bl.LinePointers, lp)
-						continue
-					}
-					dp := pointer(l.Line)
-					if _, ok := res.LineData[dp]; !ok {
-						res.LineData[dp] = l.Line
-					}
-					l2 := sLine{}
-					l2.Commit = l.Commit
-					l2.LineDataPointer = dp
-					res.Lines[lp] = l2
-					bl.LinePointers = append(bl.LinePointers, lp)
+				dp := pointer(l.Line)
+				if _, ok := res.LineData[dp]; !ok {
+					res.LineData[dp] = sLineData{
+						Pointer: dp,
+						Data:    l.Line}
 				}
-				res.Blames[blp] = bl
-				res.Data[ch][fp] = blp
+				l2 := sLine{}
+				l2.Pointer = lp
+				l2.Commit = l.Commit
+				l2.LineDataPointer = dp
+				res.Lines[lp] = l2
+				bl.LinePointers = append(bl.LinePointers, lp)
 			}
+			res.Blames[blp] = bl
+			res.Data[ch][fp] = blp
 		}
+	}
 
-		return res
-	*/
+	return res
 }
 
 // could return hash of value instead, but this should be faster
