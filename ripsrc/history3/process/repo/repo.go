@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo/disk"
@@ -28,7 +29,8 @@ type Repo struct {
 	dir string
 
 	// map[commitHash]map[filePath]*incblame.Blame
-	data map[string]map[string]*incblame.Blame
+	data     map[string]map[string]*incblame.Blame
+	toUnload []string
 
 	// needed for continuation from checkpoint
 	fromCheckpoint string
@@ -91,13 +93,28 @@ func (s *Repo) GetFile(commitHash, filePath string) (*incblame.Blame, error) {
 	return commit[filePath], nil
 }
 
+const maxCommitsInCheckpoint = 1000
+
 // Unload removes commit data from memory. Reduces memory use.
 func (s *Repo) Unload(commit string) {
-	//delete(s.data, commit)
-	//delete(s.filesInCommit, commit)
+	s.toUnload = append(s.toUnload, commit)
+	if len(s.toUnload) > 2*maxCommitsInCheckpoint {
+		fmt.Println("unloading")
+		toUnload := s.toUnload[0 : len(s.toUnload)/2]
+		s.toUnload = s.toUnload[len(s.toUnload)/2:]
+		for _, c := range toUnload {
+			fmt.Println("unloaded")
+			delete(s.data, c)
+		}
+	}
 }
 
 func (s *Repo) WriteCheckpoint() error {
+	start := time.Now()
+	fmt.Println("starting writing checkpoint")
+	defer func() {
+		fmt.Println("finished writing checkpoint in", time.Since(start))
+	}()
 	data := s.SerializeData()
 	data2 := &disk.Data{}
 	for ch, commit := range data.Data {
@@ -122,6 +139,12 @@ func (s *Repo) WriteCheckpoint() error {
 }
 
 func (s *Repo) readCheckpoint() error {
+	start := time.Now()
+	fmt.Println("starting reading checkpoint")
+	defer func() {
+		fmt.Println("finished reading checkpoint in", time.Since(start))
+	}()
+
 	data := &disk.Data{}
 	err := msgpReadFromFile(filepath.Join(s.dir, "checkpoint.data"), data)
 	if err != nil {
