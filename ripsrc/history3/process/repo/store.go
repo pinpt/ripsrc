@@ -1,5 +1,6 @@
 package repo
 
+/*
 import (
 	"fmt"
 	"os"
@@ -93,3 +94,4 @@ func (s *store) Get(key storeKey) []byte {
 	}
 	return res
 }
+*/

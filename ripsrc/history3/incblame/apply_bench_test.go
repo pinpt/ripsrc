@@ -30,7 +30,7 @@ func TestApplyNewGenFile(t *testing.T) {
 	f := Apply(Blame{}, diff, "c1", "")
 	want := Blame{}
 	for i := 0; i < lines; i++ {
-		want.Lines = append(want.Lines, tl("a", "c1"))
+		want.Lines = append(want.Lines, line("a", "c1"))
 	}
 	assertEqualFiles(t, f, want)
 }
@@ -68,11 +68,9 @@ func TestApplyRemovalsGen(t *testing.T) {
 	f1 := Apply(Blame{}, diff1, "c1", "")
 	diff2 := makeLongDiffRemoval(lines)
 	f2 := Apply(f1, diff2, "c2", "")
-	want := Blame{
-		Lines: []Line{
-			tl("a", "c1"),
-		},
-	}
+	want := file("c2",
+		line("a", "c1"),
+	)
 	assertEqualFiles(t, f2, want)
 }
 
@@ -112,14 +110,12 @@ func TestApplyAdditionsStartGen(t *testing.T) {
 	f1 := Apply(Blame{}, diff1, "c1", "")
 	diff2 := makeLongDiffAdd(lines)
 	f2 := Apply(f1, diff2, "c2", "")
-	want := Blame{
-		Lines: []Line{
-			tl("b", "c2"),
-			tl("b", "c2"),
-			tl("b", "c2"),
-			tl("a", "c1"),
-		},
-	}
+	want := file("c2",
+		line("b", "c2"),
+		line("b", "c2"),
+		line("b", "c2"),
+		line("a", "c1"),
+	)
 	assertEqualFiles(t, f2, want)
 }
 

@@ -24,18 +24,16 @@ func TestApplyBasic1(t *testing.T) {
 	c1 := "c1"
 	f2 := Apply(Blame{}, diff, c1, "")
 
-	want := Blame{
-		Lines: []Line{
-			tl(`package main`, c1),
-			tl(``, c1),
-			tl(`import "github.com/pinpt/ripsrc/cmd"`, c1),
-			tl(``, c1),
-			tl(`func main() {`, c1),
-			tl(`	cmd.Execute()`, c1),
-			tl(`}`, c1),
-			tl(``, c1),
-		},
-	}
+	want := file("c1",
+		line(`package main`, c1),
+		line(``, c1),
+		line(`import "github.com/pinpt/ripsrc/cmd"`, c1),
+		line(``, c1),
+		line(`func main() {`, c1),
+		line(`	cmd.Execute()`, c1),
+		line(`}`, c1),
+		line(``, c1),
+	)
 
 	assertEqualFiles(t, f2, want)
 }
@@ -64,16 +62,14 @@ func TestApplyBasic2Regular(t *testing.T) {
 	diff = Parse([]byte(basicDiff2))
 	f = Apply(f, diff, c2, "")
 
-	want := Blame{
-		Lines: []Line{
-			tl(`package main`, c1),
-			tl(``, c1),
-			tl(`func main() {`, c1),
-			tl(`  // do nothing`, c2),
-			tl(`}`, c1),
-			tl(``, c1),
-		},
-	}
+	want := file("c2",
+		line(`package main`, c1),
+		line(``, c1),
+		line(`func main() {`, c1),
+		line(`  // do nothing`, c2),
+		line(`}`, c1),
+		line(``, c1),
+	)
 
 	assertEqualFiles(t, f, want)
 }

@@ -74,16 +74,14 @@ index 4cd4b38..904d55b 100644
 		tparseDiffs(mergeDiff1, mergeDiff2),
 		c4merge, "")
 
-	want := Blame{
-		Lines: []Line{
-			tl(`package main`, c1base),
-			tl(``, c1base),
-			tl(`func main(){`, c1base),
-			tl(`// M`, c3master),
-			tl(`// A`, c2branch),
-			tl(`}`, c1base),
-		},
-	}
+	want := file(c4merge,
+		line(`package main`, c1base),
+		line(``, c1base),
+		line(`func main(){`, c1base),
+		line(`// M`, c3master),
+		line(`// A`, c2branch),
+		line(`}`, c1base),
+	)
 
 	assertEqualFiles(t, f4merge, want)
 }
@@ -242,46 +240,45 @@ index 7a73855..e5f72e3 100644
 		tparseDiffs(mergeDiff1, mergeDiff2),
 		c4merge, "")
 
-	want := Blame{
-		Lines: []Line{
-			tl(`1`, c2branch),
-			tl(`2`, c2branch),
-			tl(`3`, c2branch),
-			tl(`4`, c2branch),
-			tl(`5`, c2branch),
-			tl(`q`, c1base),
-			tl(`w`, c1base),
-			tl(`e`, c1base),
-			tl(`r`, c1base),
-			tl(`t`, c1base),
-			tl(`y`, c1base),
-			tl(`u`, c1base),
-			tl(`i`, c1base),
-			tl(`o`, c1base),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`9`, c3master),
-			tl(`p`, c1base),
-			tl(`a`, c1base),
-			tl(`s`, c1base),
-			tl(`1`, c2branch),
-			tl(`2`, c2branch),
-			tl(`3`, c2branch),
-			tl(`4`, c2branch),
-			tl(`5`, c2branch),
-			tl(`d`, c1base),
-			tl(`f`, c1base),
-			tl(`g`, c1base),
-			tl(`h`, c1base),
-			tl(`z`, c1base),
-			tl(`x`, c1base),
-		},
-	}
+	want := file(c4merge,
+
+		line(`1`, c2branch),
+		line(`2`, c2branch),
+		line(`3`, c2branch),
+		line(`4`, c2branch),
+		line(`5`, c2branch),
+		line(`q`, c1base),
+		line(`w`, c1base),
+		line(`e`, c1base),
+		line(`r`, c1base),
+		line(`t`, c1base),
+		line(`y`, c1base),
+		line(`u`, c1base),
+		line(`i`, c1base),
+		line(`o`, c1base),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`9`, c3master),
+		line(`p`, c1base),
+		line(`a`, c1base),
+		line(`s`, c1base),
+		line(`1`, c2branch),
+		line(`2`, c2branch),
+		line(`3`, c2branch),
+		line(`4`, c2branch),
+		line(`5`, c2branch),
+		line(`d`, c1base),
+		line(`f`, c1base),
+		line(`g`, c1base),
+		line(`h`, c1base),
+		line(`z`, c1base),
+		line(`x`, c1base),
+	)
 
 	assertEqualFiles(t, f4merge, want)
 }
@@ -401,20 +398,18 @@ index 9102991..7570414 100644
 		tparseDiffs(mergeDiff1, mergeDiff2, mergeDiff3),
 		c5merge, "")
 
-	want := Blame{
-		Lines: []Line{
-			tl(`1`, c2a),
-			tl(`q`, c1base),
-			tl(`w`, c1base),
-			tl(`e`, c1base),
-			tl(`r`, c1base),
-			tl(`t`, c1base),
-			tl(`2`, c3b),
-			tl(`y`, c1base),
-			tl(`i`, c1base),
-			tl(`3`, c4m),
-		},
-	}
+	want := file(c5merge,
+		line(`1`, c2a),
+		line(`q`, c1base),
+		line(`w`, c1base),
+		line(`e`, c1base),
+		line(`r`, c1base),
+		line(`t`, c1base),
+		line(`2`, c3b),
+		line(`y`, c1base),
+		line(`i`, c1base),
+		line(`3`, c4m),
+	)
 
 	assertEqualFiles(t, f5merge, want)
 }

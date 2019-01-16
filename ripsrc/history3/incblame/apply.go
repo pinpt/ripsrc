@@ -13,7 +13,7 @@ import (
 // Blame contains blame information for a file, with commit hash that created each particular line.
 type Blame struct {
 	Commit   string
-	Lines    []Line
+	Lines    []*Line
 	IsBinary bool
 }
 
@@ -68,7 +68,7 @@ func (f Blame) Eq(f2 *Blame) bool {
 	for i := range f.Lines {
 		a := f.Lines[i]
 		b := f2.Lines[i]
-		if !a.Eq(b) {
+		if !a.Eq(*b) {
 			return false
 		}
 	}
@@ -88,7 +88,7 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 		rerr(errors.New("diff.IsBinary"))
 	}
 
-	var res []Line
+	var res []*Line
 
 	// copyRange copies the range of lines using indexes from old file
 	copyRange := func(from, to int) {
@@ -101,7 +101,7 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 	}
 
 	addLine := func(data []byte) {
-		res = append(res, Line{Line: data, Commit: commit})
+		res = append(res, &Line{Line: data, Commit: commit})
 	}
 
 	sort.Slice(diff.Hunks, func(i, j int) bool {

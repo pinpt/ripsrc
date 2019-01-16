@@ -2,21 +2,33 @@
 
 package disk
 
-type HashAndData struct {
-	Hash uint64 `msg:"h"`
-	Data []byte `msg:"d"`
+type Data struct {
+	Data     []DataRow  `msg:"data"`
+	Blames   []Blame    `msg:"bl"`
+	Lines    []Line     `msg:"l"`
+	LineData []LineData `msg:"ld"`
 }
 
-type Commit struct {
-	Files []string `msg:"f"`
+type DataRow struct {
+	Commit       string `msg:"c"`
+	Path         string `msg:"p"`
+	BlamePointer uint64 `msg:"bp"`
 }
 
-type BlameData struct {
-	IsBinary bool   `msg:"ib"`
-	Lines    []Line `msg:"l"`
+type Blame struct {
+	Pointer      uint64   `msg:"p"`
+	Commit       string   `msg:"c"`
+	LinePointers []uint64 `msg:"lp"`
+	IsBinary     bool     `msg:"ib"`
 }
 
 type Line struct {
-	Commit  string `msg:"c"`
-	DataKey uint64 `msg:"dk"`
+	Pointer         uint64 `msg:"p"`
+	Commit          string `msg:"c"`
+	LineDataPointer uint64 `msg:"ldp"`
+}
+
+type LineData struct {
+	Pointer uint64 `msg:"p"`
+	Data    []byte `msg:"d"`
 }

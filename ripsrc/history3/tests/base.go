@@ -149,10 +149,10 @@ func assertResult(t *testing.T, want, got []process.Result) {
 	}
 }
 
-func file(hash string, lines ...incblame.Line) *incblame.Blame {
+func file(hash string, lines ...*incblame.Line) *incblame.Blame {
 	return &incblame.Blame{Commit: hash, Lines: lines}
 }
 
-func line(buf string, commit string) incblame.Line {
-	return incblame.Line{Line: []byte(buf), Commit: commit}
+func line(buf string, commit string) *incblame.Line {
+	return &incblame.Line{Line: []byte(buf), Commit: commit}
 }

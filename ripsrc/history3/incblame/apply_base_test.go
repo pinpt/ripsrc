@@ -26,6 +26,10 @@ func assertEqualFiles(t *testing.T, got, want Blame) {
 	}
 }
 
-func tl(str string, commit string) Line {
-	return Line{Line: []byte(str), Commit: commit}
+func file(hash string, lines ...*Line) Blame {
+	return Blame{Commit: hash, Lines: lines}
+}
+
+func line(str string, commit string) *Line {
+	return &Line{Line: []byte(str), Commit: commit}
 }

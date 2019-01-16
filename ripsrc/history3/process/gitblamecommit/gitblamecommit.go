@@ -100,7 +100,7 @@ func gitblameRun(repoDir string, commitHash string, filePath string) (res incbla
 	}
 	res.Commit = commitHash
 	for _, l := range bl.Lines {
-		l2 := incblame.Line{}
+		l2 := &incblame.Line{}
 		l2.Commit = l.CommitHash
 		l2.Line = []byte(l.Content)
 		res.Lines = append(res.Lines, l2)
