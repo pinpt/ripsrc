@@ -41,4 +41,4 @@ close(results)
 
 ## License
 
-All of this code is Copyright &copy; 2018 by PinPT, Inc. Licensed under the MIT License
+All of this code is Copyright &copy; 2018-2019 by Pinpoint Software, Inc. Licensed under the MIT License
