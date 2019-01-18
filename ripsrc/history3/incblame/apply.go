@@ -13,9 +13,11 @@ import (
 // Blame contains blame information for a file, with commit hash that created each particular line.
 type Blame struct {
 	Commit   string
-	Lines    []*Line
+	Lines    Lines
 	IsBinary bool
 }
+
+type Lines []*Line
 
 func BlameBinaryFile(commit string) *Blame {
 	return &Blame{Commit: commit, IsBinary: true}
@@ -88,7 +90,7 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 		rerr(errors.New("diff.IsBinary"))
 	}
 
-	var res []*Line
+	var res Lines
 
 	// copyRange copies the range of lines using indexes from old file
 	copyRange := func(from, to int) {
@@ -173,8 +175,8 @@ func copyBytes(b []byte) []byte {
 	return res
 }
 
-func copyLines(lines []Line) (res []Line) {
-	res = make([]Line, len(lines))
+func copyLines(lines Lines) (res Lines) {
+	res = make(Lines, len(lines))
 	copy(res, lines)
 	return
 }

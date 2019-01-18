@@ -24,8 +24,6 @@ type Process struct {
 	opts       Opts
 	gitCommand string
 
-	repo *repo.Repo
-
 	commitParents      graph.Graph
 	commitChildren     map[string][]string
 	childrenProcessed  map[string]int
@@ -36,6 +34,11 @@ type Process struct {
 	mergeParts map[string]parser.Commit
 
 	timing *Timing
+
+	repo     repo.Repo
+	unloader *repo.Unloader
+
+	checkpointsDir string
 }
 
 type Opts struct {
@@ -57,21 +60,20 @@ func New(opts Opts) *Process {
 	s.opts = opts
 	s.gitCommand = "git"
 	s.timing = &Timing{}
-	var err error
 
-	checkpointDir := filepath.Join(opts.RepoDir, "pp-git-cache")
+	s.checkpointsDir = filepath.Join(opts.RepoDir, "pp-git-cache")
 
 	if opts.CommitFromIncl == "" {
-		s.repo, err = repo.New(checkpointDir)
-		if err != nil {
-			panic(err)
-		}
+		s.repo = repo.New()
 	} else {
-		s.repo, err = repo.NewFromCheckpoint(checkpointDir, opts.CommitFromIncl)
+		r, err := repo.ReadCheckpoint(s.checkpointsDir)
 		if err != nil {
 			panic(err)
 		}
+		s.repo = r
 	}
+
+	s.unloader = repo.NewUnloader(s.repo)
 
 	return s
 }
@@ -129,7 +131,7 @@ func (s *Process) Run(resChan chan Result) error {
 		s.processGotMergeParts(resChan)
 	}
 
-	err = s.repo.WriteCheckpoint()
+	err = repo.WriteCheckpoint(s.repo, s.checkpointsDir)
 	if err != nil {
 		return err
 	}
@@ -149,10 +151,11 @@ func (s *Process) trimGraphAfterCommitProcessed(commit string) {
 		siblings := s.commitChildren[p]
 		if s.childrenProcessed[p] == len(siblings) {
 			// done with parent, can delete it
-			s.repo.Unload(p)
+			s.unloader.Unload(p)
 		}
 	}
-	commitsInMemory := s.repo.CommitsInMemory()
+	//commitsInMemory := s.repo.CommitsInMemory()
+	commitsInMemory := len(s.repo)
 	if commitsInMemory > s.maxLenOfStoredTree {
 		s.maxLenOfStoredTree = commitsInMemory
 	}
@@ -285,6 +288,9 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 	if len(commit.Parents) > 1 {
 		panic("not a regular commit")
 	}
+	// note that commit exists (important for empty commits)
+	s.repo.AddCommit(commit.Hash)
+
 	//fmt.Println("processing regular commit", commit.Hash)
 	res.Commit = commit.Hash
 	res.Files = map[string]*incblame.Blame{}
@@ -305,8 +311,7 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			} else {
 				p := diff.Path
 				res.Files[p] = bl
-
-				s.repoSave(commit.Hash, p, bl)
+				s.repo[commit.Hash][p] = bl
 			}
 			continue
 		}
@@ -332,19 +337,9 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			// rename with no patch
 			if len(diff.Hunks) == 0 {
 				parent := commit.Parents[0]
-				pb, err := s.repo.GetFile(parent, diff.PathPrev)
-				if err != nil {
-					panic(err)
-				}
-				if pb == nil {
-					filesInParent, err := s.repo.GetFiles(parent)
-					if err != nil {
-						panic(err)
-					}
-					panic(fmt.Errorf("regular commit %v, file rename from %v to %v, file not found in parent %v files in parent: %v", commit.Hash, diff.PathPrev, diff.Path, parent, filesInParent))
-				}
+				pb := s.repo.GetFileMust(parent, diff.PathPrev)
 				if pb.IsBinary {
-					s.repoSave(commit.Hash, diff.Path, pb)
+					s.repo[commit.Hash][diff.Path] = pb
 					res.Files[diff.Path] = pb
 					continue
 				}
@@ -366,11 +361,7 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			case 0: // initial commit, no parent
 			case 1: // regular commit
 				parentHash := commit.Parents[0]
-
-				pb, err := s.repo.GetFile(parentHash, diff.PathPrev)
-				if err != nil {
-					panic(err)
-				}
+				pb := s.repo.GetFileOptional(parentHash, diff.PathPrev)
 				// file may not be in parent if this is create
 				if pb != nil {
 					parentBlame = pb
@@ -395,8 +386,7 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 				blame = incblame.Apply(*parentBlame, diff, commit.Hash, diff.PathOrPrev())
 			}
 		}
-
-		s.repoSave(commit.Hash, diff.Path, &blame)
+		s.repo[commit.Hash][diff.Path] = &blame
 		res.Files[diff.Path] = &blame
 	}
 
@@ -407,27 +397,16 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 
 	// copy unchanged from prev
 	p := commit.Parents[0]
-	files, err := s.repo.GetFiles(p)
-	if err != nil {
-		panic(err)
-	}
-	for _, fp := range files {
+	files := s.repo.GetCommitMust(p)
+	for fp := range files {
 		// was in the diff changes, nothing to do
 		if _, ok := res.Files[fp]; ok {
 			continue
 		}
-
-		blame, err := s.repo.GetFile(p, fp)
-		if err != nil {
-			panic(err)
-		}
-
-		if blame == nil {
-			panic("file not found")
-		}
+		blame := s.repo.GetFileMust(p, fp)
 
 		// copy reference
-		s.repoSave(commit.Hash, fp, blame)
+		s.repo[commit.Hash][fp] = blame
 	}
 
 	return
@@ -443,6 +422,9 @@ func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.
 		s.timing.MergesTime += dur
 		s.timing.MergesCount++
 	}()
+
+	// note that commit exists (important for empty commits)
+	s.repo.AddCommit(commitHash)
 
 	//fmt.Println("processing merge commit", commitHash)
 
@@ -532,13 +514,7 @@ EACHFILE:
 				continue
 			}
 			parent := parentHashes[i]
-			pb, err := s.repo.GetFile(parent, diff.PathPrev)
-			if err != nil {
-				panic(err)
-			}
-			if pb == nil {
-				panic("parent file not found")
-			}
+			pb := s.repo.GetFileMust(parent, diff.PathPrev)
 			if pb.IsBinary {
 				binParentsWithDiffs++
 			}
@@ -547,7 +523,7 @@ EACHFILE:
 		// do not try to resolve the diffs for binary files in merge commits
 		if binaryDiffs != 0 || binParentsWithDiffs != 0 {
 			bl := incblame.BlameBinaryFile(commitHash)
-			s.repoSave(commitHash, k, bl)
+			s.repo[commitHash][k] = bl
 			res.Files[k] = bl
 			continue
 		}
@@ -575,13 +551,10 @@ EACHFILE:
 			if diff == nil {
 				// same as parent
 				parent := parentHashes[i]
-				pb, err := s.repo.GetFile(parent, k)
-				if err != nil {
-					panic(err)
-				}
+				pb := s.repo.GetFileOptional(parent, k)
 				if pb != nil {
 					// exacly the same as parent, no changes
-					s.repoSave(commitHash, k, pb)
+					s.repo[commitHash][k] = pb
 					continue EACHFILE
 				}
 			}
@@ -592,12 +565,9 @@ EACHFILE:
 			if diff == nil {
 				// no change use prev
 				parentHash := parentHashes[i]
-				parentBlame, err := s.repo.GetFile(parentHash, k)
-				if err != nil {
-					panic(err)
-				}
+				parentBlame := s.repo.GetFileOptional(parentHash, k)
 				if parentBlame == nil {
-					panic(fmt.Errorf("merge: no change for file recorded, but parent does not contain blame information file:%v merge:%v parent:%v", k, commitHash, parentHash))
+					panic(fmt.Errorf("merge: no change for file recorded, but parent does not contain file:%v merge commit:%v parent:%v", k, commitHash, parentHash))
 				}
 				parents = append(parents, *parentBlame)
 				continue
@@ -607,18 +577,11 @@ EACHFILE:
 			if pathPrev == "" {
 				// this is create, no parent blame
 				parents = append(parents, incblame.Blame{})
-				//fmt.Println("create for paretnt", i)
 				continue
 			}
 
 			parentHash := parentHashes[i]
-			parentBlame, err := s.repo.GetFile(parentHash, pathPrev)
-			if err != nil {
-				panic(err)
-			}
-			if parentBlame == nil {
-				panic("parent blame not found")
-			}
+			parentBlame := s.repo.GetFileMust(parentHash, pathPrev)
 			parents = append(parents, *parentBlame)
 		}
 		//fmt.Println("path", k)
@@ -630,7 +593,7 @@ EACHFILE:
 			diffs2 = append(diffs2, *ob)
 		}
 		blame := incblame.ApplyMerge(parents, diffs2, commitHash, k)
-		s.repoSave(commitHash, k, &blame)
+		s.repo[commitHash][k] = &blame
 
 		// only showing deletes and files changed in merge comparent to at least one parent
 		res.Files[k] = &blame
@@ -641,11 +604,8 @@ EACHFILE:
 	// get a list of all files in all parents
 	files = map[string]bool{}
 	for _, p := range parentHashes {
-		filesInCommit, err := s.repo.GetFiles(p)
-		if err != nil {
-			panic(err)
-		}
-		for _, f := range filesInCommit {
+		filesInCommit := s.repo.GetCommitMust(p)
+		for f := range filesInCommit {
 			files[f] = true
 		}
 	}
@@ -655,16 +615,9 @@ EACHFILE:
 	for f := range files {
 		alreadyAddedAbove := false
 		{
-			bl, err := s.repo.GetFile(commitHash, f)
-			if err != nil {
-				if repo.IsErrNoCommit(err) {
-				} else {
-					panic(err)
-				}
-			} else {
-				if bl != nil {
-					alreadyAddedAbove = true
-				}
+			bl := s.repo.GetFileOptional(commitHash, f)
+			if bl != nil {
+				alreadyAddedAbove = true
 			}
 
 		}
@@ -675,10 +628,7 @@ EACHFILE:
 
 		var candidates []*incblame.Blame
 		for _, p := range parentHashes {
-			bl, err := s.repo.GetFile(p, f)
-			if err != nil {
-				panic(err)
-			}
+			bl := s.repo.GetFileOptional(p, f)
 			if bl != nil {
 				candidates = append(candidates, bl)
 			}
@@ -687,7 +637,7 @@ EACHFILE:
 		// only one branch has the file
 		if len(candidates) == 1 {
 			// copy reference
-			s.repoSave(commitHash, f, candidates[0])
+			s.repo[commitHash][f] = candidates[0]
 			continue
 		}
 
@@ -721,15 +671,9 @@ EACHFILE:
 		}
 		if res == nil {
 			// all are unchanged
-			res, err := s.repo.GetFile(root, f)
-			if err != nil {
-				panic(err)
-			}
-			if res == nil {
-				panic("unchanged file not found")
-			}
+			res = s.repo.GetFileMust(root, f)
 		}
-		s.repoSave(commitHash, f, res)
+		s.repo[commitHash][f] = res
 
 	}
 
@@ -750,41 +694,6 @@ func (s *Process) slowGitBlame(commitHash string, filePath string) (res incblame
 		res.Lines = append(res.Lines, l2)
 	}
 	return
-}
-
-/*
-func (s *Process) repoGetCommit(commit string) (_ map[string]*incblame.Blame, ok bool) {
-	if s.opts.CommitFromIncl == "" {
-		res, ok := s.repo[commit]
-		return res, ok
-	}
-	if _, ok := s.repo[commit]; !ok {
-		// using commit that was not yet loaded
-		fmt.Println("populating blame for unloaded commit", commit)
-		bl, err := gitblamecommit.Blame(context.Background(), s.opts.RepoDir, commit)
-		if err != nil {
-			panic(err)
-		}
-		s.repo[commit] = bl
-	}
-	res, ok := s.repo[commit]
-	return res, ok
-}
-
-func (s *Process) repoGetFile(commitHash, path string) *incblame.Blame {
-	s.repo.GetFile(commit)
-	commit, ok := s.repoGetCommit(commitHash)
-	if !ok {
-		return nil
-	}
-	return commit[path]
-}
-*/
-func (s *Process) repoSave(commit, path string, blame *incblame.Blame) {
-	err := s.repo.Add(commit, path, blame)
-	if err != nil {
-		panic(err)
-	}
 }
 
 func (s *Process) RunGetAll() (_ []Result, err error) {

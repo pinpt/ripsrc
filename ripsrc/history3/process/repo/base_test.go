@@ -1,5 +1,6 @@
 package repo
 
+/*
 import (
 	"io/ioutil"
 
@@ -22,9 +23,10 @@ func line(buf string, commit string) *incblame.Line {
 	return &incblame.Line{Line: []byte(buf), Commit: commit}
 }
 
-func add(repo *Repo, commitHash, filePath string, blame *incblame.Blame) {
+func add(repo Repo, commitHash, filePath string, blame *incblame.Blame) {
 	err := repo.Add(commitHash, filePath, blame)
 	if err != nil {
 		panic(err)
 	}
 }
+*/

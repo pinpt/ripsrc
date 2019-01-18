@@ -2,14 +2,11 @@ package gitblamecommit
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
-	"sync"
 
-	"github.com/pinpt/ripsrc/ripsrc/gitblame2"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 )
 
@@ -18,7 +15,7 @@ var concurrency = 2 * runtime.NumCPU()
 // Another approach to running blames on demand only
 // Could lead to unpredictable performance.
 // Would also lose changes in merges.
-func Blame2(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
+func Blame(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
 	files, err := listOfFiles(ctx, repoDir, commitHash)
 	if err != nil {
 		return nil, err
@@ -33,7 +30,29 @@ func Blame2(ctx context.Context, repoDir string, commitHash string) (map[string]
 	return res, nil
 }
 
-func Blame(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
+func listOfFiles(ctx context.Context, repoDir string, commitHash string) (res []string, _ error) {
+	args := []string{
+		"ls-tree",
+		"--name-only",
+		"-r",
+		commitHash,
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = repoDir
+	cmd.Stderr = os.Stderr
+	b, err := cmd.Output()
+	if err != nil {
+		panic(err)
+	}
+	for _, l := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		res = append(res, l)
+	}
+	return res, nil
+}
+
+/*
+
+func Blame2(ctx context.Context, repoDir string, commitHash string) (map[string]*incblame.Blame, error) {
 	files, err := listOfFiles(ctx, repoDir, commitHash)
 	if err != nil {
 		return nil, err
@@ -72,25 +91,7 @@ func stringsChan(arr []string) chan string {
 	return res
 }
 
-func listOfFiles(ctx context.Context, repoDir string, commitHash string) (res []string, _ error) {
-	args := []string{
-		"ls-tree",
-		"--name-only",
-		"-r",
-		commitHash,
-	}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = repoDir
-	cmd.Stderr = os.Stderr
-	b, err := cmd.Output()
-	if err != nil {
-		panic(err)
-	}
-	for _, l := range strings.Split(strings.TrimSpace(string(b)), "\n") {
-		res = append(res, l)
-	}
-	return res, nil
-}
+
 
 func gitblameRun(repoDir string, commitHash string, filePath string) (res incblame.Blame, _ error) {
 	fmt.Println("git blame", repoDir, commitHash, filePath)
@@ -107,3 +108,4 @@ func gitblameRun(repoDir string, commitHash string, filePath string) (res incbla
 	}
 	return
 }
+*/

@@ -1,11 +1,6 @@
 package repo
 
-import (
-	"os"
-	"reflect"
-	"testing"
-)
-
+/*
 func TestBasic1(t *testing.T) {
 	td := tempDir()
 	defer os.RemoveAll(td)
@@ -52,3 +47,4 @@ func TestBasic1(t *testing.T) {
 		t.Fatal("retrieved blame does not match orig")
 	}
 }
+*/
