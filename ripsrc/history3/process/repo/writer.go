@@ -2,17 +2,17 @@ package repo
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
-	"reflect"
-	"runtime/debug"
-	"sync"
 	"time"
+
+	"github.com/cespare/xxhash"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo/disk"
 )
 
-const checkpointFileName = "checkpoint.data"
+const checkpointDirName = "checkpoint"
 
 func WriteCheckpoint(repo Repo, dir string) error {
 	start := time.Now()
@@ -20,95 +20,136 @@ func WriteCheckpoint(repo Repo, dir string) error {
 	defer func() {
 		fmt.Println("finished writing checkpoint in", time.Since(start))
 	}()
-	data := serializeData(repo)
-	data2 := &disk.Data{}
-	for ch, commit := range data.Data {
-		for fp, b := range commit {
-			r := disk.DataRow{}
-			r.Commit = ch
-			r.Path = fp
-			r.BlamePointer = b
-			data2.Data = append(data2.Data, r)
-		}
-	}
-	for _, obj := range data.Blames {
-		data2.Blames = append(data2.Blames, obj)
-	}
-	for _, obj := range data.Lines {
-		data2.Lines = append(data2.Lines, obj)
-	}
-	for _, obj := range data.LineData {
-		data2.LineData = append(data2.LineData, obj)
-	}
-	return msgpWriteToFile(filepath.Join(dir, checkpointFileName), data2)
-}
+	fmt.Println("preparing to write", len(repo), "commits")
 
-func ReadCheckpoint(dir string) (Repo, error) {
-	start := time.Now()
-	fmt.Println("starting reading checkpoint")
-	defer func() {
-		fmt.Println("finished reading checkpoint in", time.Since(start))
-	}()
-
-	repo := New()
-
-	data := &disk.Data{}
-	err := msgpReadFromFile(filepath.Join(dir, checkpointFileName), data)
+	tmpDir := filepath.Join(dir, "tmp")
+	err := os.RemoveAll(tmpDir)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	lineData := map[uint64][]byte{}
-	lines := map[uint64]*incblame.Line{}
-	blames := map[uint64]*incblame.Blame{}
-	i := 0
-	for _, obj := range data.LineData {
-		lineData[obj.Pointer] = obj.Data
-		i++
+
+	dir = filepath.Join(dir, checkpointDirName)
+
+	repoWr, err := newMsgWriter(tmpDir, "repo")
+	if err != nil {
+		return err
 	}
-	fmt.Println("loaded line data", i)
-	i = 0
-	for _, obj := range data.Lines {
-		line := &incblame.Line{}
-		line.Commit = obj.Commit
-		v, ok := lineData[obj.LineDataPointer]
-		if !ok {
-			panic("line data")
+	blamesWr, err := newMsgWriter(tmpDir, "blames")
+	if err != nil {
+		return err
+	}
+	linesWr, err := newMsgWriter(tmpDir, "lines")
+	if err != nil {
+		return err
+	}
+	lineDataWr, err := newMsgWriter(tmpDir, "line-data")
+	if err != nil {
+		return err
+	}
+
+	blamePointerC := uint64(0)
+	blamePointers := map[*incblame.Blame]uint64{}
+
+	linePointerC := uint64(0)
+	linePointers := map[*incblame.Line]uint64{}
+
+	lineData := map[uint64]bool{}
+
+	writeRepoRow := func(commit string, filePath string, blamePointer uint64) {
+		r := &disk.DataRow{}
+		r.Commit = commit
+		r.Path = filePath
+		r.BlamePointer = blamePointer
+		err := repoWr.Write(r)
+		if err != nil {
+			panic(err)
 		}
-		line.Line = v
-		lines[obj.Pointer] = line
-		i++
 	}
-	fmt.Println("loaded lines", i)
-	i = 0
-	for _, obj := range data.Blames {
-		bl := &incblame.Blame{}
-		bl.Commit = obj.Commit
-		bl.IsBinary = obj.IsBinary
-		for _, lp := range obj.LinePointers {
-			line, ok := lines[lp]
-			if !ok {
-				panic("line")
+
+	for ch, commit := range repo {
+
+		for fp, file := range commit {
+			if blp, ok := blamePointers[file]; ok {
+				writeRepoRow(ch, fp, blp)
+				continue
 			}
-			bl.Lines = append(bl.Lines, line)
+			blamePointerC++
+			blp := blamePointerC
+			blamePointers[file] = blp
+
+			bl := &sBlame{}
+			bl.Pointer = blamePointerC
+			bl.Commit = file.Commit
+			bl.IsBinary = file.IsBinary
+			bl.LinePointers = make([]uint64, 0, len(file.Lines))
+			for _, l := range file.Lines {
+
+				if lp, ok := linePointers[l]; ok {
+					bl.LinePointers = append(bl.LinePointers, lp)
+					continue
+				}
+				linePointerC++
+				lp := linePointerC
+				linePointers[l] = lp
+
+				// line data
+				dp := xxhash.Sum64(l.Line)
+				if ok := lineData[dp]; !ok {
+					ld := &sLineData{
+						Pointer: dp,
+						Data:    l.Line}
+					err := lineDataWr.Write(ld)
+					if err != nil {
+						return err
+					}
+					lineData[dp] = true
+				}
+
+				l2 := &sLine{}
+				l2.Pointer = lp
+				l2.Commit = l.Commit
+				l2.LineDataPointer = dp
+
+				err := linesWr.Write(l2)
+				if err != nil {
+					return err
+				}
+
+				bl.LinePointers = append(bl.LinePointers, lp)
+			}
+
+			err := blamesWr.Write(bl)
+			if err != nil {
+				return err
+			}
+
+			writeRepoRow(ch, fp, blp)
 		}
-		blames[obj.Pointer] = bl
-		i++
 	}
-	fmt.Println("loaded unique blames", i)
-	i = 0
-	for _, file := range data.Data {
-		if _, ok := repo[file.Commit]; !ok {
-			repo[file.Commit] = map[string]*incblame.Blame{}
-		}
-		bl, ok := blames[file.BlamePointer]
-		if !ok {
-			panic(bl)
-		}
-		repo[file.Commit][file.Path] = bl
-		i++
+
+	err = repoWr.Finish()
+	if err != nil {
+		return err
 	}
-	fmt.Println("loaded blames", i)
-	return repo, nil
+	err = blamesWr.Finish()
+	if err != nil {
+		return err
+	}
+	err = linesWr.Finish()
+	if err != nil {
+		return err
+	}
+	err = lineDataWr.Finish()
+	if err != nil {
+		return err
+	}
+
+	err = os.RemoveAll(dir)
+	if err != nil {
+		return err
+	}
+
+	return os.Rename(tmpDir, dir)
 }
 
 type sData struct {
@@ -126,79 +167,3 @@ type sBlame = disk.Blame
 type sLine = disk.Line
 
 type sLineData = disk.LineData
-
-func int64p() *int64 {
-	v := int64(0)
-	return &v
-}
-
-var serializeInProgress = 0
-var serializePrevGC = 0
-var serializeInProgressMu = &sync.Mutex{}
-
-func serializeData(repo Repo) (res sData) {
-	// we need to disable gc while in this function, since we rely on pointer addresses being unchanged while here
-	serializeInProgressMu.Lock()
-	if serializeInProgress == 0 {
-		serializePrevGC = debug.SetGCPercent(-1)
-	}
-	serializeInProgress++
-	serializeInProgressMu.Unlock()
-	defer func() {
-		serializeInProgressMu.Lock()
-		serializeInProgress--
-		if serializeInProgress == 0 {
-			debug.SetGCPercent(serializePrevGC)
-		}
-		serializeInProgressMu.Unlock()
-	}()
-
-	res.Data = map[string]map[string]uint64{}
-	res.Blames = map[uint64]sBlame{}
-	res.Lines = map[uint64]sLine{}
-	res.LineData = map[uint64]sLineData{}
-
-	for ch, commit := range repo {
-		res.Data[ch] = map[string]uint64{}
-		for fp, file := range commit {
-			blp := pointer(file)
-			if _, ok := res.Blames[blp]; ok {
-				res.Data[ch][fp] = blp
-				continue
-			}
-			bl := sBlame{}
-			bl.Pointer = blp
-			bl.Commit = file.Commit
-			bl.IsBinary = file.IsBinary
-			bl.LinePointers = make([]uint64, 0, len(file.Lines))
-			for _, l := range file.Lines {
-				lp := pointer(l)
-				if _, ok := res.Lines[lp]; ok {
-					bl.LinePointers = append(bl.LinePointers, lp)
-					continue
-				}
-				dp := pointer(l.Line)
-				if _, ok := res.LineData[dp]; !ok {
-					res.LineData[dp] = sLineData{
-						Pointer: dp,
-						Data:    l.Line}
-				}
-				l2 := sLine{}
-				l2.Pointer = lp
-				l2.Commit = l.Commit
-				l2.LineDataPointer = dp
-				res.Lines[lp] = l2
-				bl.LinePointers = append(bl.LinePointers, lp)
-			}
-			res.Blames[blp] = bl
-			res.Data[ch][fp] = blp
-		}
-	}
-
-	return res
-}
-
-// could return hash of value instead, but this should be faster
-func pointer(v interface{}) uint64 {
-	return uint64(reflect.ValueOf(v).Pointer())
-}

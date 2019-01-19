@@ -10,6 +10,14 @@
   version = "v1.10.0"
 
 [[projects]]
+  digest = "1:0c31fa2fb2c809d61d640e28cc400087fe205df6ec9623dd1eb91a7de8d4f5d6"
+  name = "github.com/cespare/xxhash"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "3b82fb7d186719faeedd0c2864f868c74fbf79a1"
+  version = "v2.0.0"
+
+[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -95,14 +103,6 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:8ae1b5d6b900e5a00d12ba45df27aacefbee8ea8588f4cfbd34b5d5ec117ccd3"
-  name = "github.com/jhaynie/gitblame"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "235c6489d86fdbe3487a7972c73977b8b07770c5"
-  version = "0.0.11"
-
-[[projects]]
   digest = "1:f396528c1d6a75da6d0df8cd8425c8bec903ce55ebcb1a0e71643a4e93f45736"
   name = "github.com/karrick/godirwalk"
   packages = ["."]
@@ -175,20 +175,20 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:44c66ad69563dbe3f8e76d7d6cad21a03626e53f1875b5ab163ded419e01ca7a"
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:5cf3f025cbee5951a4ee961de067c8a89fc95a5adabead774f82822efabab121"
   name = "github.com/pkg/errors"
   packages = ["."]
   pruneopts = "NUT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
-
-[[projects]]
-  digest = "1:de406937d444963016a8644b65e56e2f241a1d81f76418ce59ed12257fabb5ad"
-  name = "github.com/pkg/profile"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5b67d428864e92711fcbd2f8629456121a56d91f"
-  version = "v1.2.1"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -258,6 +258,14 @@
   pruneopts = "NUT"
   revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
   version = "v1.2.2"
+
+[[projects]]
+  digest = "1:c97e8a5e5c435c3287f581cdb4441ba34577ec6ead8422bfedafa6269af7abf6"
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  pruneopts = "NUT"
+  revision = "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -535,13 +543,11 @@
   analyzer-version = 1
   input-imports = [
     "github.com/boyter/scc/processor",
+    "github.com/cespare/xxhash",
     "github.com/fatih/color",
-    "github.com/jhaynie/gitblame",
-    "github.com/karrick/godirwalk",
-    "github.com/pkg/profile",
-    "github.com/sergi/go-diff/diffmatchpatch",
     "github.com/spf13/cobra",
     "github.com/stretchr/testify/assert",
+    "github.com/tinylib/msgp/msgp",
     "gopkg.in/src-d/enry.v1",
     "gopkg.in/src-d/go-license-detector.v2/licensedb",
     "gopkg.in/src-d/go-license-detector.v2/licensedb/filer",

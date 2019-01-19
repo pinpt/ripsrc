@@ -135,8 +135,6 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 			if len(b) == 0 {
 				rerr(fmt.Errorf("could not process patch line, it was empty, h.Data %v", string(h.Data)))
 			}
-			b = copyBytes(b)
-
 			op := b[0]
 			data := b[1:]
 			switch op {
@@ -146,7 +144,7 @@ func Apply(file Blame, diff Diff, commit string, fileForDebug string) Blame {
 			case '-':
 				oldFileIndex++
 			case '+':
-				addLine(data)
+				addLine(copyBytes(data))
 			case 92:
 				if string(b) == "\\ No newline at end of file" {
 					// can ignore this, we do not case about end of file newline
@@ -173,10 +171,4 @@ func copyBytes(b []byte) []byte {
 	res := make([]byte, len(b))
 	copy(res, b)
 	return res
-}
-
-func copyLines(lines Lines) (res Lines) {
-	res = make(Lines, len(lines))
-	copy(res, lines)
-	return
 }

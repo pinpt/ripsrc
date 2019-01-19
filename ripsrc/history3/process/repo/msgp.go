@@ -8,51 +8,79 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-func msgpWriteToFile(loc string, obj msgp.Encodable) error {
-	err := os.MkdirAll(filepath.Dir(loc), 0777)
-	if err != nil {
-		return err
-	}
-	f, err := os.Create(loc + ".tmp")
-	if err != nil {
-		return err
-	}
-	gw := gzip.NewWriter(f)
-	wr := msgp.NewWriter(gw)
-	err = obj.EncodeMsg(wr)
-	if err != nil {
-		return err
-	}
-	err = wr.Flush()
-	if err != nil {
-		return err
-	}
-	err = gw.Flush()
-	if err != nil {
-		return err
-	}
-	err = f.Close()
-	if err != nil {
-		return err
-	}
-	return os.Rename(loc+".tmp", loc)
+type msgWriter struct {
+	loc string
+	f   *os.File
+	gw  *gzip.Writer
+	wr  *msgp.Writer
 }
 
-func msgpReadFromFile(loc string, obj msgp.Decodable) error {
-	f, err := os.Open(loc)
+func newMsgWriter(dir string, kind string) (*msgWriter, error) {
+	s := &msgWriter{}
+	err := os.MkdirAll(dir, 0777)
+	if err != nil {
+		return nil, err
+	}
+	s.loc = filepath.Join(dir, kind)
+	f, err := os.Create(s.loc + ".tmp")
+	if err != nil {
+		return nil, err
+	}
+	s.f = f
+	s.gw = gzip.NewWriter(f)
+	s.wr = msgp.NewWriter(s.gw)
+	return s, nil
+}
+
+func (s *msgWriter) Write(obj msgp.Encodable) error {
+	return obj.EncodeMsg(s.wr)
+}
+
+func (s *msgWriter) Finish() error {
+	err := s.wr.Flush()
 	if err != nil {
 		return err
 	}
-	gr, err := gzip.NewReader(f)
+	err = s.gw.Flush()
 	if err != nil {
 		return err
 	}
-	r := msgp.NewReader(gr)
-	err = obj.DecodeMsg(r)
+	err = s.f.Close()
 	if err != nil {
 		return err
 	}
-	err = f.Close()
+	return os.Rename(s.loc+".tmp", s.loc)
+}
+
+type msgReader struct {
+	loc string
+	f   *os.File
+	gr  *gzip.Reader
+	r   *msgp.Reader
+}
+
+func newMsgReader(dir string, kind string) (*msgReader, error) {
+	s := &msgReader{}
+	s.loc = filepath.Join(dir, kind)
+	f, err := os.Open(s.loc)
+	if err != nil {
+		return nil, err
+	}
+	s.f = f
+	s.gr, err = gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	s.r = msgp.NewReader(s.gr)
+	return s, nil
+}
+
+func (s *msgReader) Read(obj msgp.Decodable) error {
+	return obj.DecodeMsg(s.r)
+}
+
+func (s *msgReader) Finish() error {
+	err := s.f.Close()
 	if err != nil {
 		return err
 	}

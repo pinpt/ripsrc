@@ -1,11 +1,6 @@
 package repo
 
-/*
-import (
-	"io/ioutil"
-
-	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
-)
+import "io/ioutil"
 
 func tempDir() string {
 	dir, err := ioutil.TempDir("", "ripsrc-test")
@@ -14,6 +9,14 @@ func tempDir() string {
 	}
 	return dir
 }
+
+/*
+import (
+	"io/ioutil"
+
+	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
+)
+
 
 func file(hash string, lines ...*incblame.Line) *incblame.Blame {
 	return &incblame.Blame{Commit: hash, Lines: lines}
