@@ -32,8 +32,7 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "base",
 		Date:    c1d,
-		//Parent:  nil,
-		Signed: false,
+		Signed:  false,
 		//Previous: nil,
 	}
 
@@ -56,8 +55,8 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "a",
 		Date:    c2d,
-		//Parent:   strp("cb78f81991af4120b649c5e2ae18cceba598220a"),
-		Signed: false,
+		Parents: []string{"cb78f81991af4120b649c5e2ae18cceba598220a"},
+		Signed:  false,
 		//Previous: &commit1,
 	}
 
@@ -80,8 +79,8 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "m",
 		Date:    c3d,
-		//Parent:   strp("cb78f81991af4120b649c5e2ae18cceba598220a"),
-		Signed: false,
+		Parents: []string{"cb78f81991af4120b649c5e2ae18cceba598220a"},
+		Signed:  false,
 		//Previous: &commit1,
 	}
 
@@ -104,8 +103,8 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "merge",
 		Date:    c4d,
-		//Parent:   nil,gi
-		Signed: false,
+		Parents: []string{"3219b85f18fad2aa802344a2275bd8288916f4ee", "a08d204ee5913986294000e1280e7ad3484098e3"},
+		Signed:  false,
 		//Previous: &commit1,
 	}
 

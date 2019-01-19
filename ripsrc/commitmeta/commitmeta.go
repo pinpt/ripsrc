@@ -48,8 +48,9 @@ type Commit struct {
 	Date           time.Time
 	//Ordinal        int64
 	Message string
-	//Parent   *string
-	Signed bool
+
+	Parents []string
+	Signed  bool
 	//Previous *Commit
 }
 
@@ -179,7 +180,7 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--raw",
 		"--reverse",
 		"--numstat",
-		"--pretty=format:!SHA: %H%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
+		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
 	}
 
 	if s.opts.CommitFromIncl != "" {
@@ -197,7 +198,7 @@ var (
 	committerNamePrefix = []byte("!CName: ")
 	signedEmailPrefix   = []byte("!Signed-Email: ")
 	messagePrefix       = []byte("!Message: ")
-	parentPrefix        = []byte("!Parent: ")
+	parentsPrefix       = []byte("!Parents: ")
 	emailRegex          = regexp.MustCompile("<(.*)>")
 	emailBracketsRegex  = regexp.MustCompile("^\\[(.*)\\]$")
 	datePrefix          = []byte("!Date: ")
@@ -345,6 +346,12 @@ func (p *parser) parse(line string) (bool, error) {
 				//p.ordinal++
 				p.total++
 				return true, nil
+			}
+			if bytes.HasPrefix(buf, parentsPrefix) {
+				parents := string(buf[len(parentsPrefix):])
+				if len(parents) != 0 {
+					p.commit.Parents = strings.Split(parents, " ")
+				}
 			}
 			if bytes.HasPrefix(buf, datePrefix) {
 				d := bytes.TrimSpace(buf[len(datePrefix):])

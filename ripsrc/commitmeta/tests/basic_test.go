@@ -42,8 +42,8 @@ func TestBasic(t *testing.T) {
 		},
 		Message: "c1",
 		Date:    c1d,
-		//Parent:   nil,
-		Signed: false,
+		Parents: nil,
+		Signed:  false,
 		//Previous: nil,
 	}
 
@@ -58,8 +58,8 @@ func TestBasic(t *testing.T) {
 		},
 		Message: "c2",
 		Date:    c2d,
-		//Parent:   strp("b4dadc54e312e976694161c2ac59ab76feb0c40d"),
-		Signed: false,
+		Parents: []string{"b4dadc54e312e976694161c2ac59ab76feb0c40d"},
+		Signed:  false,
 		//Previous: &commit1,
 	}
 
