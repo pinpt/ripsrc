@@ -15,6 +15,8 @@ import (
 
 const checkpointDirName = "checkpoint"
 
+const checkpointVersionFile = "checkpoint-version"
+
 func WriteCheckpoint(repo Repo, dir string, lastCommit string) error {
 	start := time.Now()
 	fmt.Println("starting writing checkpoint")
@@ -145,11 +147,10 @@ func WriteCheckpoint(repo Repo, dir string, lastCommit string) error {
 		return err
 	}
 
-	/*
-		err = writeFileAtomic(filepath.Join(tmpDir, "checkpoint-version", []byte(lastCommit) )
-		if err != nil {
-			return err
-		}*/
+	err = writeFileAtomic(filepath.Join(tmpDir, checkpointVersionFile), []byte(lastCommit))
+	if err != nil {
+		return err
+	}
 
 	err = os.RemoveAll(dir)
 	if err != nil {

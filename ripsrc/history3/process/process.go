@@ -78,7 +78,13 @@ func New(opts Opts) *Process {
 	if opts.CommitFromIncl == "" {
 		s.repo = repo.New()
 	} else {
-		r, err := repo.ReadCheckpoint(s.checkpointsDir)
+		expectedCommit := ""
+		if opts.NoStrictResume {
+			// validation disabled
+		} else {
+			expectedCommit = opts.CommitFromIncl
+		}
+		r, err := repo.ReadCheckpoint(s.checkpointsDir, expectedCommit)
 		if err != nil {
 			panic(err)
 		}

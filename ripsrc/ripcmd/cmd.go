@@ -187,6 +187,7 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 
 	ripOpts := &ripsrc.RipOpts{}
 	ripOpts.CommitFromIncl = opts.CommitFromIncl
+	ripOpts.NoStrictResume = true
 	err := ripper.Rip(ctx, repoDir, res, ripOpts)
 	<-done
 

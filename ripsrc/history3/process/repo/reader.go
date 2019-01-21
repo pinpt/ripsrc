@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"time"
 
@@ -9,8 +10,29 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo/disk"
 )
 
-func ReadCheckpoint(dir string) (Repo, error) {
+type ErrCheckpointNotExpected struct {
+	WantCommit string
+	HaveCommit string
+}
+
+func (s ErrCheckpointNotExpected) Error() string {
+	return fmt.Sprintf("ripsrc: requested checkpoint for commit %v, have checkpoint for commit %v", s.WantCommit, s.HaveCommit)
+}
+
+func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
 	dir = filepath.Join(dir, checkpointDirName)
+
+	if expectedCommit != "" {
+		// no expected commit validation requested
+		b, err := ioutil.ReadFile(filepath.Join(dir, checkpointVersionFile))
+		if err != nil {
+			return nil, fmt.Errorf("failed reading checkpoint version file, err: %v", err)
+		}
+		checkpointCommit := string(b)
+		if checkpointCommit != expectedCommit {
+			return nil, ErrCheckpointNotExpected{WantCommit: expectedCommit, HaveCommit: checkpointCommit}
+		}
+	}
 
 	start := time.Now()
 	fmt.Println("starting reading checkpoint")

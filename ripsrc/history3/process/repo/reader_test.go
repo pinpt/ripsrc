@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReaderBasic1(t *testing.T) {
@@ -26,7 +28,7 @@ func TestReaderBasic1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	repo2, err := ReadCheckpoint(dir)
+	repo2, err := ReadCheckpoint(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,4 +36,29 @@ func TestReaderBasic1(t *testing.T) {
 	if !reflect.DeepEqual(repo, repo2) {
 		t.Fatalf("wanted repo %v\ngot repo %v", repo.Debug(), repo2.Debug())
 	}
+}
+
+func TestReaderValidateCommit(t *testing.T) {
+	dir := tempDir()
+	defer os.RemoveAll(dir)
+	repo := New()
+	repo.AddCommit("c1")
+	repo["c1"]["p1"] = randomBlameLineLen(1, 1)
+
+	err := WriteCheckpoint(repo, dir, "c1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ReadCheckpoint(dir, "c2")
+	if err == nil {
+		t.Fatal("expected error with invalid checkpoint commit")
+	}
+	err2, ok := err.(ErrCheckpointNotExpected)
+	if !ok {
+		t.Fatal("invalid error type")
+	}
+	assert.Equal(t, "c2", err2.WantCommit)
+	assert.Equal(t, "c1", err2.HaveCommit)
+	t.Log("error msg: " + err.Error())
 }
