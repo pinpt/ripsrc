@@ -48,6 +48,9 @@ type Opts struct {
 	// If empty, directory is created inside repoDir
 	CheckpointsDir string
 
+	// NoStrictResume forces incremental processing to avoid checking that it continues from the same commit in previously finished on. Since incrementals save a large number of previous commits, it works even starting on another commit.
+	NoStrictResume bool
+
 	// CommitFromIncl is commit from which processing should start. Inclusive.
 	// WIP. Does not work correctly at the moment.
 	CommitFromIncl string
@@ -140,7 +143,7 @@ func (s *Process) Run(resChan chan Result) error {
 		s.processGotMergeParts(resChan)
 	}
 
-	err = repo.WriteCheckpoint(s.repo, s.checkpointsDir)
+	err = repo.WriteCheckpoint(s.repo, s.checkpointsDir, "")
 	if err != nil {
 		return err
 	}

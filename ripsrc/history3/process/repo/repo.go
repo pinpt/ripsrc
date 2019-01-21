@@ -3,6 +3,8 @@ package repo
 import (
 	"container/list"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 )
@@ -11,6 +13,53 @@ type Repo map[string]map[string]*incblame.Blame
 
 func New() Repo {
 	return Repo{}
+}
+
+func (s Repo) Debug() string {
+	res := []string{}
+	type KV struct {
+		K string
+		V map[string]*incblame.Blame
+	}
+	var arr []KV
+	for k, v := range s {
+		arr = append(arr, KV{k, v})
+	}
+	sort.Slice(arr, func(i, j int) bool {
+		a := arr[i]
+		b := arr[j]
+		return a.K < b.K
+	})
+	line := func(str string) {
+		res = append(res, str)
+		res = append(res, "\n")
+	}
+	line("")
+	for _, v := range arr {
+		commit := v.K
+		line("commit:" + commit)
+		type KV struct {
+			K string
+			V *incblame.Blame
+		}
+		var arr []KV
+		for k, v := range v.V {
+			arr = append(arr, KV{k, v})
+		}
+		sort.Slice(arr, func(i, j int) bool {
+			a := arr[i]
+			b := arr[j]
+			return a.K < b.K
+		})
+		for _, v := range arr {
+			line("commit:" + commit)
+			line("file:" + v.K)
+			line(v.V.String())
+			line("")
+		}
+	}
+	line("")
+	return strings.Join(res, "")
 }
 
 func (s Repo) CommitsInMemory() int {

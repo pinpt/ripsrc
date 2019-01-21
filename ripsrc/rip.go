@@ -80,6 +80,8 @@ type RipOpts struct {
 	// CheckpointsDir is the directory to store incremental data cache for this repo
 	// If empty, directory is created inside repoDir
 	CheckpointsDir string
+	// NoStrictResume forces incremental processing to avoid checking that it continues from the same commit in previously finished on. Since incrementals save a large number of previous commits, it works even starting on another commit.
+	NoStrictResume bool
 	CommitFromIncl string
 }
 
@@ -122,6 +124,7 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 	processOpts := process.Opts{
 		RepoDir:        repoDir,
 		CheckpointsDir: opts.CheckpointsDir,
+		NoStrictResume: opts.NoStrictResume,
 	}
 	processOpts.CommitFromIncl = opts.CommitFromIncl
 	gitProcessor := process.New(processOpts)

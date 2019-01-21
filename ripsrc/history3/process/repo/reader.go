@@ -38,8 +38,8 @@ func ReadCheckpoint(dir string) (Repo, error) {
 	}
 	lineData := map[uint64][]byte{}
 	{
-		obj := &disk.LineData{}
 		for {
+			obj := &disk.LineData{}
 			err := lineDataR.Read(obj)
 			if err != nil {
 				if msgIsEOF(err) {
@@ -53,8 +53,8 @@ func ReadCheckpoint(dir string) (Repo, error) {
 	fmt.Println("loaded line data", len(lineData))
 	lines := map[uint64]*incblame.Line{}
 	{
-		obj := &disk.Line{}
 		for {
+			obj := &disk.Line{}
 			err := linesR.Read(obj)
 			if err != nil {
 				if msgIsEOF(err) {
@@ -75,8 +75,8 @@ func ReadCheckpoint(dir string) (Repo, error) {
 	fmt.Println("loaded lines", len(lines))
 	blames := map[uint64]*incblame.Blame{}
 	{
-		obj := &disk.Blame{}
 		for {
+			obj := &disk.Blame{}
 			err := blamesR.Read(obj)
 			if err != nil {
 				if msgIsEOF(err) {
@@ -99,9 +99,9 @@ func ReadCheckpoint(dir string) (Repo, error) {
 	}
 	fmt.Println("loaded unique blames", len(blames))
 	{
-		obj := &disk.DataRow{}
 		i := 0
 		for {
+			obj := &disk.DataRow{}
 			err := repoR.Read(obj)
 			if err != nil {
 				if msgIsEOF(err) {

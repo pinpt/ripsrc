@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,7 +15,7 @@ import (
 
 const checkpointDirName = "checkpoint"
 
-func WriteCheckpoint(repo Repo, dir string) error {
+func WriteCheckpoint(repo Repo, dir string, lastCommit string) error {
 	start := time.Now()
 	fmt.Println("starting writing checkpoint")
 	defer func() {
@@ -144,12 +145,26 @@ func WriteCheckpoint(repo Repo, dir string) error {
 		return err
 	}
 
+	/*
+		err = writeFileAtomic(filepath.Join(tmpDir, "checkpoint-version", []byte(lastCommit) )
+		if err != nil {
+			return err
+		}*/
+
 	err = os.RemoveAll(dir)
 	if err != nil {
 		return err
 	}
 
 	return os.Rename(tmpDir, dir)
+}
+
+func writeFileAtomic(loc string, data []byte) error {
+	err := ioutil.WriteFile(loc+".tmp", data, 0777)
+	if err != nil {
+		return err
+	}
+	return os.Rename(loc+".tmp", loc)
 }
 
 type sData struct {
