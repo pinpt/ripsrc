@@ -1,4 +1,4 @@
-package ripsrc
+package fileinfo
 
 import (
 	"regexp"
@@ -8,6 +8,12 @@ import (
 	"gopkg.in/src-d/go-license-detector.v2/licensedb"
 	"gopkg.in/src-d/go-license-detector.v2/licensedb/filer"
 )
+
+// License holds details about detected license
+type License struct {
+	Name       string
+	Confidence float32
+}
 
 type memoryfiler struct {
 	filename string

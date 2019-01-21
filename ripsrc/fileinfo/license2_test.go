@@ -1,4 +1,4 @@
-package ripsrc
+package fileinfo
 
 import (
 	"sync"

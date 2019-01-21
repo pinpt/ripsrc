@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
+	"github.com/pinpt/ripsrc/ripsrc/fileinfo"
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
@@ -46,10 +47,7 @@ type BlameLine struct {
 }
 
 // License holds details about detected license
-type License struct {
-	Name       string
-	Confidence float32
-}
+type License = fileinfo.License
 
 // CommitStatus is a commit status type
 type CommitStatus = commitmeta.CommitStatus
@@ -67,11 +65,14 @@ type Ripper struct {
 	commitMeta        map[string]Commit
 	GitProcessTimings process.Timing
 	CodeInfoTimings   *CodeInfoTimings
+
+	fileInfo *fileinfo.Process
 }
 
 func New() *Ripper {
 	s := &Ripper{}
 	s.CodeInfoTimings = &CodeInfoTimings{}
+	s.fileInfo = fileinfo.New()
 	return s
 }
 

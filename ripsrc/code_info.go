@@ -7,10 +7,11 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/pinpt/ripsrc/ripsrc/fileinfo"
+
 	"github.com/boyter/scc/processor"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
-	enry "gopkg.in/src-d/enry.v1"
 )
 
 func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error) {
@@ -40,6 +41,7 @@ func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 			fmt.Printf("empty file path, commit %v", commit.SHA)
 			continue
 		}
+
 		r := BlameResult{}
 		r.Filename = filePath
 		r.Commit = commit
@@ -50,6 +52,7 @@ func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 			continue
 			panic(fmt.Errorf("Changed file was not found in stats log entry, file %v commit %v", r.Filename, commit.SHA))
 		}
+
 		r.Status = f.Status
 
 		if r.Status == GitFileCommitStatusRemoved {
@@ -59,7 +62,19 @@ func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 			continue
 		}
 
-		r, err := s.codeInfoFile(filePath, blf, r)
+		fileBytes := blameToFileContent(blf)
+		fileLines := blameToByteLines(blf)
+		info, skipReason := s.fileInfo.GetInfo(fileinfo.InfoArgs{FilePath: filePath, Content: fileBytes, Lines: fileLines})
+		r.License = info.License
+		r.Language = info.Language
+
+		if skipReason != "" {
+			r.Skipped = skipReason
+			res = append(res, r)
+			continue
+		}
+
+		r, err := s.codeInfoFile(filePath, blf, fileBytes, r)
 		if err != nil {
 			return nil, err
 		}
@@ -69,36 +84,14 @@ func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 	return
 }
 
-// maxLinePerFile controls how many lines of code (LOC) we will process before
-// determining that it's not a human written source file (generated, etc)
-// and skip it
-const maxLinePerFile = 40000
-
-// maxBytesPerLine controls the size of one line we will process before
-// determining that it's not a human written source file (generated, etc)
-// and skip it
-const maxBytesPerLine = 1096
-
-// maxFileSize controls the size of the overall file we will process before
-// determining that it's not a human written source file (generated, etc)
-// and skip it
-const maxFileSize = 1000000
-
 const (
-	blacklisted        = "File was on an exclusion list"
-	whitelisted        = "File was not on the inclusion list"
-	removedFile        = "File was removed"
-	limitExceed        = "File size was %dK which exceeds limit of %dK"
-	maxLineExceed      = "File has more than %d lines"
-	maxLineBytesExceed = "File has a line width of >=%dK which is greater than max of %dK"
-	generatedFile      = "File was a generated file"
-	vendoredFile       = "File was a vendored file"
-	configFile         = "File was a config file"
-	dotFile            = "File was a dot file"
-	pathInvalid        = "File path was invalid"
-	languageUnknown    = "Language was unknown"
-	fileNotSupported   = "File type was not supported as source code"
-	fileBinary         = "File was binary"
+	generatedFile = "file was a generated file"
+	//whitelisted      = "File was not on the inclusion list"
+	removedFile = "File was removed"
+	//pathInvalid      = "File path was invalid"
+	//languageUnknown  = "Language was unknown"
+	//fileNotSupported = "File type was not supported as source code"
+	//fileBinary       = "File was binary"
 )
 
 type CodeInfoTimings struct {
@@ -112,7 +105,7 @@ func (s *CodeInfoTimings) OutputStats(wr io.Writer) {
 	fmt.Fprintln(wr, "total time", s.Time)
 }
 
-func (s *Ripper) codeInfoFile(filePath string, bl *incblame.Blame, res BlameResult) (BlameResult, error) {
+func (s *Ripper) codeInfoFile(filePath string, bl *incblame.Blame, fileBytes []byte, res BlameResult) (BlameResult, error) {
 	start := time.Now()
 	defer func() {
 		dur := time.Since(start)
@@ -120,34 +113,10 @@ func (s *Ripper) codeInfoFile(filePath string, bl *incblame.Blame, res BlameResu
 		s.CodeInfoTimings.Time += dur
 	}()
 
-	fileBytes := blameToFileContent(bl)
-	fileSize := len(fileBytes)
-	// check for max file size exclusion
-	if fileSize >= maxFileSize {
-		res.Skipped = fmt.Sprintf(limitExceed, fileSize/1024, maxFileSize/1024)
-		return res, nil
-	}
-
-	// classify the files language
-	language := enry.GetLanguage(filePath, fileBytes)
-	if language == "" {
-		res.Skipped = languageUnknown
-		return res, nil
-	}
-	res.Language = language
-
 	var lines []*statsLine
 
 	// assign lines to result
-	for idx, line := range bl.Lines {
-		if idx >= maxLinePerFile {
-			res.Skipped = fmt.Sprintf(maxLineExceed, idx)
-			return res, nil
-		}
-		if len(line.Line) >= maxBytesPerLine {
-			res.Skipped = fmt.Sprintf(maxLineBytesExceed, len(line.Line)/1024, maxBytesPerLine/1024)
-			return res, nil
-		}
+	for _, line := range bl.Lines {
 		meta := s.commitMeta[line.Commit]
 		line2 := &statsLine{}
 		line2.BlameLine = &BlameLine{}
@@ -172,7 +141,13 @@ func blameToFileContent(bl *incblame.Blame) (res []byte) {
 		res = append(res, "\n"...)
 	}
 	return
+}
 
+func blameToByteLines(bl *incblame.Blame) (res [][]byte) {
+	for _, l := range bl.Lines {
+		res = append(res, l.Line)
+	}
+	return
 }
 
 func (s *Ripper) codeStats(filePath string, bl *incblame.Blame, fileBytes []byte, lines []*statsLine, res BlameResult) (BlameResult, error) {
@@ -194,13 +169,7 @@ func (s *Ripper) codeStats(filePath string, bl *incblame.Blame, fileBytes []byte
 	res.Complexity = filejob.Complexity
 	res.WeightedComplexity = filejob.WeightedComplexity
 
-	if !statcallback.generated {
-		var license *License
-		if possibleLicense(filePath) {
-			license, _ = detect(filePath, fileBytes)
-		}
-		res.License = license
-	} else {
+	if statcallback.generated {
 		// it was a generated file ... in this case, we treat it like a
 		// deleted file in case it wasn't skipped in a previous commit
 		res.Language = ""
