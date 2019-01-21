@@ -77,6 +77,9 @@ func New() *Ripper {
 }
 
 type RipOpts struct {
+	// CheckpointsDir is the directory to store incremental data cache for this repo
+	// If empty, directory is created inside repoDir
+	CheckpointsDir string
 	CommitFromIncl string
 }
 
@@ -116,7 +119,10 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 		done <- true
 	}()
 
-	processOpts := process.Opts{RepoDir: repoDir}
+	processOpts := process.Opts{
+		RepoDir:        repoDir,
+		CheckpointsDir: opts.CheckpointsDir,
+	}
 	processOpts.CommitFromIncl = opts.CommitFromIncl
 	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)

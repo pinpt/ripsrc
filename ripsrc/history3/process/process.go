@@ -43,6 +43,11 @@ type Process struct {
 
 type Opts struct {
 	RepoDir string
+
+	// CheckpointsDir is the directory to store incremental data cache for this repo
+	// If empty, directory is created inside repoDir
+	CheckpointsDir string
+
 	// CommitFromIncl is commit from which processing should start. Inclusive.
 	// WIP. Does not work correctly at the moment.
 	CommitFromIncl string
@@ -61,7 +66,11 @@ func New(opts Opts) *Process {
 	s.gitCommand = "git"
 	s.timing = &Timing{}
 
-	s.checkpointsDir = filepath.Join(opts.RepoDir, "pp-git-cache")
+	if opts.CheckpointsDir != "" {
+		s.checkpointsDir = filepath.Join(opts.CheckpointsDir, "pp-git-cache")
+	} else {
+		s.checkpointsDir = filepath.Join(opts.RepoDir, "pp-git-cache")
+	}
 
 	if opts.CommitFromIncl == "" {
 		s.repo = repo.New()
