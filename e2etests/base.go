@@ -244,10 +244,10 @@ func assertCommitEqual(t *testing.T, c1, c2 ripsrc.Commit) bool {
 		return false
 	}
 	// internally incremented counter, don't need to check
-	//if c1.Ordinal != c2.Ordinal {
-	//	t.Error("commit.Ordinal mismatch")
-	//	return false
-	//}
+	if c1.Ordinal != c2.Ordinal {
+		t.Error("commit.Ordinal mismatch")
+		return false
+	}
 	if c1.Message != c2.Message {
 		t.Error("commit.Message mismatch")
 		return false

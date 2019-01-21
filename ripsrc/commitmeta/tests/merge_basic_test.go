@@ -33,7 +33,7 @@ func TestMergeBasic(t *testing.T) {
 		Message: "base",
 		Date:    c1d,
 		Signed:  false,
-		//Previous: nil,
+		Ordinal: 1,
 	}
 
 	c2d := parseGitDate("Tue Dec 4 17:42:10 2018 +0100")
@@ -57,7 +57,7 @@ func TestMergeBasic(t *testing.T) {
 		Date:    c2d,
 		Parents: []string{"cb78f81991af4120b649c5e2ae18cceba598220a"},
 		Signed:  false,
-		//Previous: &commit1,
+		Ordinal: 2,
 	}
 
 	c3d := parseGitDate("Tue Dec 4 17:42:29 2018 +0100")
@@ -81,7 +81,7 @@ func TestMergeBasic(t *testing.T) {
 		Date:    c3d,
 		Parents: []string{"cb78f81991af4120b649c5e2ae18cceba598220a"},
 		Signed:  false,
-		//Previous: &commit1,
+		Ordinal: 3,
 	}
 
 	c4d := parseGitDate("Tue Dec 4 17:42:55 2018 +0100")
@@ -105,7 +105,7 @@ func TestMergeBasic(t *testing.T) {
 		Date:    c4d,
 		Parents: []string{"3219b85f18fad2aa802344a2275bd8288916f4ee", "a08d204ee5913986294000e1280e7ad3484098e3"},
 		Signed:  false,
-		//Previous: &commit1,
+		Ordinal: 4,
 	}
 
 	want := []commitmeta.Commit{commit1, commit2, commit3, commit4}

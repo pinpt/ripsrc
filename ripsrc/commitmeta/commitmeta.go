@@ -46,8 +46,8 @@ type Commit struct {
 	CommitterEmail string
 	Files          map[string]*CommitFile
 	Date           time.Time
-	//Ordinal        int64
-	Message string
+	Ordinal        int64
+	Message        string
 
 	Parents []string
 	Signed  bool
@@ -133,7 +133,6 @@ func (s *Processor) Run(res chan Commit) error {
 	parser.dir = s.repoDir
 	//parser.limit = limit
 	parser.commits = res
-	//parser.ordinal = time.Now().Unix()
 
 	// we don't need this in new code. TODO: check and remove
 	fjChan := make(chan *CommitFile, 100)
@@ -301,8 +300,8 @@ type parser struct {
 	dir      string
 	limit    int
 	total    int
-	//ordinal  int64
-	state parserState
+	ordinal  int64
+	state    parserState
 }
 
 func (p *parser) parse(line string) (bool, error) {
@@ -335,15 +334,15 @@ func (p *parser) parse(line string) (bool, error) {
 					p.commit = nil
 					return false, nil
 				}
+				p.ordinal++
 				p.commit = &Commit{
 					//Dir:      p.dir,
-					SHA:   string(sha),
-					Files: make(map[string]*CommitFile, 0),
-					//Ordinal:  p.ordinal,
+					SHA:     string(sha),
+					Files:   make(map[string]*CommitFile, 0),
+					Ordinal: p.ordinal,
 					//Parent:   parent,
 					//Previous: parentCommit,
 				}
-				//p.ordinal++
 				p.total++
 				return true, nil
 			}

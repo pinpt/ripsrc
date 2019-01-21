@@ -44,7 +44,7 @@ func TestBasic(t *testing.T) {
 		Date:    c1d,
 		Parents: nil,
 		Signed:  false,
-		//Previous: nil,
+		Ordinal: 1,
 	}
 
 	commit2 := commitmeta.Commit{
@@ -60,7 +60,7 @@ func TestBasic(t *testing.T) {
 		Date:    c2d,
 		Parents: []string{"b4dadc54e312e976694161c2ac59ab76feb0c40d"},
 		Signed:  false,
-		//Previous: &commit1,
+		Ordinal: 2,
 	}
 
 	want := []commitmeta.Commit{commit1, commit2}

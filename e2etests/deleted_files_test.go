@@ -38,9 +38,8 @@ func TestDeletedFiles(t *testing.T) {
 		},
 		Message: "c1",
 		Date:    c1d,
-		//Parent:  nil,
-		Signed: false,
-		//Previous: nil,
+		Signed:  false,
+		Ordinal: 1,
 	}
 
 	commit2 := ripsrc.Commit{
@@ -54,9 +53,8 @@ func TestDeletedFiles(t *testing.T) {
 		},
 		Message: "c2",
 		Date:    c2d,
-		//Parent:   nil,
-		Signed: false,
-		//Previous: &commit1,
+		Signed:  false,
+		Ordinal: 2,
 	}
 
 	want := []ripsrc.BlameResult{

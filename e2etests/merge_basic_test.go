@@ -29,6 +29,7 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "base",
 		Date:    c1d,
+		Ordinal: 1,
 	}
 
 	c2d := parseGitDate("Tue Dec 4 17:42:10 2018 +0100")
@@ -48,6 +49,7 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "a",
 		Date:    c2d,
+		Ordinal: 2,
 	}
 
 	c3d := parseGitDate("Tue Dec 4 17:42:29 2018 +0100")
@@ -68,8 +70,8 @@ func TestMergeBasic(t *testing.T) {
 		Message: "m",
 		Date:    c3d,
 		//Parent:   nil,
-		Signed: false,
-		//Previous: &commit1,
+		Signed:  false,
+		Ordinal: 3,
 	}
 
 	c4d := parseGitDate("Tue Dec 4 17:42:55 2018 +0100")
@@ -90,6 +92,7 @@ func TestMergeBasic(t *testing.T) {
 		Message: "merge",
 		Date:    c4d,
 		Signed:  false,
+		Ordinal: 4,
 	}
 
 	want := []ripsrc.BlameResult{

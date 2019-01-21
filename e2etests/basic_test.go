@@ -45,6 +45,7 @@ func TestBasic(t *testing.T) {
 		//Parent:  nil,
 		Signed: false,
 		//Previous: nil,
+		Ordinal: 1,
 	}
 
 	commit2 := ripsrc.Commit{
@@ -61,6 +62,7 @@ func TestBasic(t *testing.T) {
 		//Parent:   nil,
 		Signed: false,
 		//Previous: &commit1,
+		Ordinal: 2,
 	}
 
 	want := []ripsrc.BlameResult{

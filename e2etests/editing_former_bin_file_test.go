@@ -36,6 +36,7 @@ func TestEditingFormerBinFile(t *testing.T) {
 		},
 		Message: "c1",
 		Date:    c1d,
+		Ordinal: 1,
 	}
 
 	f2 := ripsrc.CommitFile{
@@ -55,6 +56,7 @@ func TestEditingFormerBinFile(t *testing.T) {
 		},
 		Message: "c2",
 		Date:    c2d,
+		Ordinal: 2,
 	}
 
 	f3 := ripsrc.CommitFile{
@@ -74,6 +76,7 @@ func TestEditingFormerBinFile(t *testing.T) {
 		},
 		Message: "c3",
 		Date:    c3d,
+		Ordinal: 3,
 	}
 
 	want := []ripsrc.BlameResult{
