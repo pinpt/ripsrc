@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,19 +10,30 @@ import (
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo/disk"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 )
 
 const checkpointDirName = "checkpoint"
 
 const checkpointVersionFile = "checkpoint-version"
 
-func WriteCheckpoint(repo Repo, dir string, lastCommit string) error {
+type CheckpointWriter struct {
+	logger logger.Logger
+}
+
+func NewCheckpointWriter(logger logger.Logger) *CheckpointWriter {
+	s := &CheckpointWriter{}
+	s.logger = logger
+	return s
+}
+
+func (s *CheckpointWriter) Write(repo Repo, dir string, lastCommit string) error {
 	start := time.Now()
-	fmt.Println("starting writing checkpoint")
+	s.logger.Info("starting writing checkpoint")
 	defer func() {
-		fmt.Println("finished writing checkpoint in", time.Since(start))
+		s.logger.Info("finished writing checkpoint", "dur", time.Since(start))
 	}()
-	fmt.Println("preparing to write", len(repo), "commits")
+	s.logger.Info("preparing to write", "len(commits)", len(repo))
 
 	tmpDir := filepath.Join(dir, "tmp")
 	err := os.RemoveAll(tmpDir)

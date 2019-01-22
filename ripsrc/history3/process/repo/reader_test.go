@@ -5,8 +5,14 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
+
 	"github.com/stretchr/testify/assert"
 )
+
+func testReader(t *testing.T) *CheckpointReader {
+	return NewCheckpointReader(logger.NewDefaultLogger(os.Stdout))
+}
 
 func TestReaderBasic1(t *testing.T) {
 	dir := tempDir()
@@ -23,12 +29,12 @@ func TestReaderBasic1(t *testing.T) {
 		}
 	}
 
-	err := WriteCheckpoint(repo, dir, "c1")
+	err := testWriter(t).Write(repo, dir, "c1")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	repo2, err := ReadCheckpoint(dir, "")
+	repo2, err := testReader(t).Read(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,12 +51,12 @@ func TestReaderValidateCommit(t *testing.T) {
 	repo.AddCommit("c1")
 	repo["c1"]["p1"] = randomBlameLineLen(1, 1)
 
-	err := WriteCheckpoint(repo, dir, "c1")
+	err := testWriter(t).Write(repo, dir, "c1")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = ReadCheckpoint(dir, "c2")
+	_, err = testReader(t).Read(dir, "c2")
 	if err == nil {
 		t.Fatal("expected error with invalid checkpoint commit")
 	}

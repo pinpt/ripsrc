@@ -8,6 +8,7 @@ import (
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo/disk"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 )
 
 type ErrCheckpointNotExpected struct {
@@ -19,7 +20,17 @@ func (s ErrCheckpointNotExpected) Error() string {
 	return fmt.Sprintf("ripsrc: requested checkpoint for commit %v, have checkpoint for commit %v", s.WantCommit, s.HaveCommit)
 }
 
-func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
+type CheckpointReader struct {
+	logger logger.Logger
+}
+
+func NewCheckpointReader(logger logger.Logger) *CheckpointReader {
+	s := &CheckpointReader{}
+	s.logger = logger
+	return s
+}
+
+func (s *CheckpointReader) Read(dir string, expectedCommit string) (Repo, error) {
 	dir = filepath.Join(dir, checkpointDirName)
 
 	if expectedCommit != "" {
@@ -35,9 +46,9 @@ func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
 	}
 
 	start := time.Now()
-	fmt.Println("starting reading checkpoint")
+	s.logger.Info("starting reading checkpoint")
 	defer func() {
-		fmt.Println("finished reading checkpoint in", time.Since(start))
+		s.logger.Info("finished reading checkpoint", "dur", time.Since(start))
 	}()
 
 	repo := New()
@@ -72,7 +83,7 @@ func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
 			lineData[obj.Pointer] = obj.Data
 		}
 	}
-	fmt.Println("loaded line data", len(lineData))
+	s.logger.Info("loaded line data", "count", len(lineData))
 	lines := map[uint64]*incblame.Line{}
 	{
 		for {
@@ -94,7 +105,7 @@ func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
 			lines[obj.Pointer] = line
 		}
 	}
-	fmt.Println("loaded lines", len(lines))
+	s.logger.Info("loaded lines", "count", len(lines))
 	blames := map[uint64]*incblame.Blame{}
 	{
 		for {
@@ -119,7 +130,7 @@ func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
 			blames[obj.Pointer] = bl
 		}
 	}
-	fmt.Println("loaded unique blames", len(blames))
+	s.logger.Info("loaded unique blames", "count", len(blames))
 	{
 		i := 0
 		for {
@@ -141,7 +152,7 @@ func ReadCheckpoint(dir string, expectedCommit string) (Repo, error) {
 			repo[obj.Commit][obj.Path] = bl
 			i++
 		}
-		fmt.Println("loaded blames", i)
+		s.logger.Info("loaded blames", "count", i)
 	}
 
 	err = repoR.Finish()

@@ -3,11 +3,13 @@ package ripsrc
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
 	"github.com/pinpt/ripsrc/ripsrc/fileinfo"
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
@@ -77,6 +79,8 @@ func New() *Ripper {
 }
 
 type RipOpts struct {
+	Logger logger.Logger
+
 	// CheckpointsDir is the directory to store incremental data cache for this repo
 	// If empty, directory is created inside repoDir
 	CheckpointsDir string
@@ -94,6 +98,10 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 
 	if opts == nil {
 		opts = &RipOpts{}
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = logger.NewDefaultLogger(os.Stdout)
 	}
 
 	err := gitexec.Prepare(ctx, gitCommand, repoDir)

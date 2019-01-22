@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/gitblame2"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/parentsp"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo"
@@ -42,6 +44,7 @@ type Process struct {
 }
 
 type Opts struct {
+	Logger  logger.Logger
 	RepoDir string
 
 	// CheckpointsDir is the directory to store incremental data cache for this repo
@@ -65,6 +68,11 @@ type Result struct {
 
 func New(opts Opts) *Process {
 	s := &Process{}
+
+	if opts.Logger == nil {
+		opts.Logger = logger.NewDefaultLogger(os.Stdout)
+	}
+
 	s.opts = opts
 	s.gitCommand = "git"
 	s.timing = &Timing{}
@@ -84,7 +92,8 @@ func New(opts Opts) *Process {
 		} else {
 			expectedCommit = opts.CommitFromIncl
 		}
-		r, err := repo.ReadCheckpoint(s.checkpointsDir, expectedCommit)
+		reader := repo.NewCheckpointReader(s.opts.Logger)
+		r, err := reader.Read(s.checkpointsDir, expectedCommit)
 		if err != nil {
 			panic(err)
 		}
@@ -149,7 +158,8 @@ func (s *Process) Run(resChan chan Result) error {
 		s.processGotMergeParts(resChan)
 	}
 
-	err = repo.WriteCheckpoint(s.repo, s.checkpointsDir, "")
+	writer := repo.NewCheckpointWriter(s.opts.Logger)
+	err = writer.Write(s.repo, s.checkpointsDir, "")
 	if err != nil {
 		return err
 	}

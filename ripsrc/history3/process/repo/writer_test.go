@@ -5,8 +5,13 @@ import (
 	"testing"
 
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 	"github.com/pinpt/ripsrc/ripsrc/pkg/random"
 )
+
+func testWriter(t *testing.T) *CheckpointWriter {
+	return NewCheckpointWriter(logger.NewDefaultLogger(os.Stdout))
+}
 
 func randomString(c int) string {
 	return random.String(c, random.LatinAndNumbers)
@@ -46,8 +51,10 @@ func BenchmarkWritingCheckpointRandomData(b *testing.B) {
 
 	b.ResetTimer()
 
+	wr := NewCheckpointWriter(logger.NewDefaultLogger(os.Stdout))
 	for i := 0; i < b.N; i++ {
-		err := WriteCheckpoint(repo, dir, "c1")
+
+		err := wr.Write(repo, dir, "c1")
 		if err != nil {
 			b.Fatal(err)
 		}
