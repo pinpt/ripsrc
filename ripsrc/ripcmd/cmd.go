@@ -10,7 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -173,6 +175,22 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 	res := make(chan ripsrc.BlameResult)
 	done := make(chan bool)
 	go func() {
+		allocatedMem := getAllocatedMemMB()
+		allocatedMemMu := &sync.Mutex{}
+		ticker := time.NewTicker(time.Second)
+
+		go func() {
+			for {
+				<-ticker.C
+				allocatedMemMu.Lock()
+				allocatedMem = getAllocatedMemMB()
+				allocatedMemMu.Unlock()
+
+				timeSinceStartMin := int(time.Since(globalStart).Minutes())
+				fmt.Fprintf(color.Output, "[%sm][%vMB]\n", color.YellowString("%v", timeSinceStartMin), color.YellowString("%v", allocatedMem))
+			}
+		}()
+
 		for blame := range res {
 			entries++
 			var license string
@@ -180,7 +198,11 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 				license = fmt.Sprintf("%v (%.0f%%)", color.RedString(blame.License.Name), 100*blame.License.Confidence)
 			}
 			timeSinceStartMin := int(time.Since(globalStart).Minutes())
-			fmt.Fprintf(color.Output, "[%s][%s][%s] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.YellowString("%v", repoDir), color.CyanString(blame.Commit.SHA[0:8]), color.YellowString("%vm", timeSinceStartMin), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
+			allocatedMemMu.Lock()
+			mem := allocatedMem
+			allocatedMemMu.Unlock()
+			fmt.Fprintf(color.Output, "[%s][%s][%sm][%vMB] %s language=%s,license=%v,loc=%v,sloc=%v,comments=%v,blanks=%v,complexity=%v,skipped=%v,status=%s,author=%s\n", color.YellowString("%v", repoDir), color.CyanString(blame.Commit.SHA[0:8]), color.YellowString("%v", timeSinceStartMin), color.YellowString("%v", mem), color.GreenString(blame.Filename), color.MagentaString(blame.Language), license, blame.Loc, color.YellowString("%v", blame.Sloc), blame.Comments, blame.Comments, blame.Complexity, blame.Skipped, blame.Commit.Files[blame.Filename].Status, blame.Commit.Author())
+
 		}
 		done <- true
 	}()
@@ -204,6 +226,12 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 	fmt.Fprintf(color.Output, "finished repo processing for %v in %v. %d entries processed\n", color.HiGreenString(repoDir), time.Since(start), entries)
 
 	return entries, nil
+}
+
+func getAllocatedMemMB() int {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return int(m.HeapAlloc / 1024 / 1024)
 }
 
 func hasHeadCommit(ctx context.Context, repoDir string) bool {
