@@ -130,6 +130,7 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 	}()
 
 	processOpts := process.Opts{
+		Logger:         opts.Logger,
 		RepoDir:        repoDir,
 		CheckpointsDir: opts.CheckpointsDir,
 		NoStrictResume: opts.NoStrictResume,
