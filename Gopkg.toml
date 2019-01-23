@@ -27,15 +27,11 @@
 
 [[constraint]]
   name = "github.com/boyter/scc"
-  version = "2.0.0"
+  version = "1.10.0"
 
 [[constraint]]
   name = "github.com/fatih/color"
   version = "1.7.0"
-
-[[constraint]]
-  name = "github.com/jhaynie/gitblame"
-  version = "0.0.11"
 
 [[constraint]]
   name = "github.com/karrick/godirwalk"
@@ -56,6 +52,14 @@
 [[constraint]]
   name = "github.com/pkg/profile"
   version = "1.2.1"
+
+[[constraint]]
+  name = "github.com/tinylib/msgp"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "github.com/cespare/xxhash"
+  version = "2.0"
 
 [prune]
   go-tests = true

@@ -36,8 +36,14 @@ windows: setup
 darwin: setup codesign
 	@GOOS=darwin GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-darwin
 
-test:
-	@go test -race -v ./ripsrc
+tparse:
+ifeq (, $(shell which tparse))
+	@echo need to install tparse ...
+	@go get github.com/mfridman/tparse
+endif
+
+test: tparse
+	@go test -race -v -cover ./ripsrc -json | tparse -all
 
 # we codesign our OSX binary with Apple Developer Certificate
 codesign:

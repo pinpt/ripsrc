@@ -33,7 +33,7 @@ go func() {
 		fmt.Println(result)
 	}
 }()
-if err := ripsrc.Rip(context.Background(), "myrepo_dir", results, nil); err != nil {
+if err := ripsrc.Rip(context.Background(), "myrepo_dir", results, nil, false); err != nil {
 	log.Fatal("fatal error", err)
 }
 close(results)

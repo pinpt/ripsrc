@@ -2,11 +2,19 @@
 
 
 [[projects]]
-  digest = "1:c1e6e440afa5b0c885c35e14f70193bd2856919bc67ee0fcaaed7730b3340894"
+  digest = "1:b9f0f63707fb5ea66307339cad43034d745ddfed916fcb99af04984953cdfd75"
   name = "github.com/boyter/scc"
   packages = ["processor"]
   pruneopts = "NUT"
-  revision = "2e3c3ad25f830c4af04bbe20afa0d99a4f9eb814"
+  revision = "f466da50673ba14762766647787974777f6b0f6e"
+  version = "v1.10.0"
+
+[[projects]]
+  digest = "1:0c31fa2fb2c809d61d640e28cc400087fe205df6ec9623dd1eb91a7de8d4f5d6"
+  name = "github.com/cespare/xxhash"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "3b82fb7d186719faeedd0c2864f868c74fbf79a1"
   version = "v2.0.0"
 
 [[projects]]
@@ -57,14 +65,6 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:3c04690dd1d3fad9a36c492c32863fad91bcf822fd95d5c4cae97be1e9abc361"
-  name = "github.com/go-test/deep"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "6592d9cc0a499ad2d5f574fde80a2b5c5cc3b4f5"
-  version = "v1.0.1"
-
-[[projects]]
   branch = "master"
   digest = "1:074d6d55a71951cde9a71dc59e45a244cbc75f4dedbbb24ee00711e32db621ce"
   name = "github.com/hhatto/gorst"
@@ -101,14 +101,6 @@
   pruneopts = "NUT"
   revision = "20d3663d4bc9dd10d75abcde9d92e04b4861c674"
   version = "v1.1.0"
-
-[[projects]]
-  digest = "1:8ae1b5d6b900e5a00d12ba45df27aacefbee8ea8588f4cfbd34b5d5ec117ccd3"
-  name = "github.com/jhaynie/gitblame"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "235c6489d86fdbe3487a7972c73977b8b07770c5"
-  version = "0.0.11"
 
 [[projects]]
   digest = "1:f396528c1d6a75da6d0df8cd8425c8bec903ce55ebcb1a0e71643a4e93f45736"
@@ -183,20 +175,20 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:44c66ad69563dbe3f8e76d7d6cad21a03626e53f1875b5ab163ded419e01ca7a"
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:5cf3f025cbee5951a4ee961de067c8a89fc95a5adabead774f82822efabab121"
   name = "github.com/pkg/errors"
   packages = ["."]
   pruneopts = "NUT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
-
-[[projects]]
-  digest = "1:de406937d444963016a8644b65e56e2f241a1d81f76418ce59ed12257fabb5ad"
-  name = "github.com/pkg/profile"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5b67d428864e92711fcbd2f8629456121a56d91f"
-  version = "v1.2.1"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -266,6 +258,14 @@
   pruneopts = "NUT"
   revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
   version = "v1.2.2"
+
+[[projects]]
+  digest = "1:c97e8a5e5c435c3287f581cdb4441ba34577ec6ead8422bfedafa6269af7abf6"
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  pruneopts = "NUT"
+  revision = "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -421,8 +421,8 @@
     "regex",
   ]
   pruneopts = "NUT"
-  revision = "8953e0e19a9a08c69113f672fbd89f6082b379d5"
-  version = "v1.6.7"
+  revision = "15bb13117fb1cc607bf87046d41ac7b53084c18b"
+  version = "v1.6.5"
 
 [[projects]]
   digest = "1:8e3881a0a4df25498d732d66b38cc9417264ffd856b939f5a598c29aedcc3c97"
@@ -543,13 +543,11 @@
   analyzer-version = 1
   input-imports = [
     "github.com/boyter/scc/processor",
+    "github.com/cespare/xxhash",
     "github.com/fatih/color",
-    "github.com/go-test/deep",
-    "github.com/jhaynie/gitblame",
-    "github.com/karrick/godirwalk",
-    "github.com/pkg/profile",
     "github.com/spf13/cobra",
     "github.com/stretchr/testify/assert",
+    "github.com/tinylib/msgp/msgp",
     "gopkg.in/src-d/enry.v1",
     "gopkg.in/src-d/go-license-detector.v2/licensedb",
     "gopkg.in/src-d/go-license-detector.v2/licensedb/filer",
