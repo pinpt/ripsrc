@@ -28,15 +28,22 @@ This repo is meant to mainly be used as a library:
 
 ```golang
 results := make(chan ripsrc.BlameResult, 100)
-go func() {
-	for result := range results {
-		fmt.Println(result)
+resultsDone := make(chan bool, 1)
+go func(){
+	for r := range results {
+		fmt.Println(r)
 	}
+	resultsDone <- true
 }()
-if err := ripsrc.Rip(context.Background(), "myrepo_dir", results, nil, false); err != nil {
-	log.Fatal("fatal error", err)
+
+opts := &ripsrc.RipOpts{}
+//opts.Logger = ..
+//opts.CommitFromIncl = ..
+err := ripsrc.New().Rip(ctx, filepath.Join(dir, "myrepo_dir"), results, opts)
+if err != nil {
+	log.Fatal("error", err)
 }
-close(results)
+<-resultsDone
 ```
 
 ## License
