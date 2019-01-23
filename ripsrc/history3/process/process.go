@@ -159,6 +159,7 @@ func (s *Process) Run(resChan chan Result) error {
 	}
 
 	writer := repo.NewCheckpointWriter(s.opts.Logger)
+	// TODO:
 	err = writer.Write(s.repo, s.checkpointsDir, "")
 	if err != nil {
 		return err
