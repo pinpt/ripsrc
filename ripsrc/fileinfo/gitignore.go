@@ -1,6 +1,6 @@
 // DO NOT EDIT -- generated code
 
-package ripsrc
+package fileinfo
 
 import "regexp"
 

@@ -25,7 +25,7 @@ clean:
 	@rm -rf $(BUILDDIR)
 
 generate:
-	@go generate ./ripsrc
+	@go run genignore.go
 
 linux: setup
 	@GOOS=linux GOARCH=amd64 go build -o $(BUILDDIR)/$(PROG_NAME)-linux

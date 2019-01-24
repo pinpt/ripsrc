@@ -84,7 +84,7 @@ func main() {
 	outfile, _ := filepath.Abs(filepath.Join("ripsrc", "fileinfo", "gitignore.go"))
 	tmpl := fmt.Sprintf(`// DO NOT EDIT -- generated code
 
-package ripsrc
+package fileinfo
 
 import "regexp"
 

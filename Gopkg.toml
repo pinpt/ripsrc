@@ -34,10 +34,6 @@
   version = "1.7.0"
 
 [[constraint]]
-  name = "github.com/karrick/godirwalk"
-  version = "1.7.1"
-
-[[constraint]]
   name = "github.com/spf13/cobra"
   version = "0.0.3"
 
@@ -48,10 +44,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-license-detector.v2"
   version = "v2"
-
-[[constraint]]
-  name = "github.com/pkg/profile"
-  version = "1.2.1"
 
 [[constraint]]
   name = "github.com/tinylib/msgp"
