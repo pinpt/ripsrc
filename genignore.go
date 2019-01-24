@@ -70,7 +70,7 @@ func parseFile(filename string) ([]string, error) {
 
 func main() {
 	var files []string
-	files = append(files, filepath.Join("..", "custom_patterns.txt"))
+	files = append(files, filepath.Join("custom_patterns.txt"))
 	matchers := []string{}
 	for _, filename := range files {
 		patterns, err := parseFile(filename)
@@ -81,7 +81,7 @@ func main() {
 	}
 	regstr := "`(" + strings.Join(matchers, "|") + ")`"
 	regexp.MustCompile(regstr) // make sure it compiles
-	outfile, _ := filepath.Abs("gitignore.go")
+	outfile, _ := filepath.Abs(filepath.Join("ripsrc", "fileinfo", "gitignore.go"))
 	tmpl := fmt.Sprintf(`// DO NOT EDIT -- generated code
 
 package ripsrc

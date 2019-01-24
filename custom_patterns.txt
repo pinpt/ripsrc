@@ -243,3 +243,7 @@ robots.txt$
 .project$
 .bak$
 Screengrabfile$
+
+# compressed storage
+.orc$
+.parquet$
