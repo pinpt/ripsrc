@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"time"
 
@@ -33,18 +34,17 @@ func NewCheckpointReader(logger logger.Logger) *CheckpointReader {
 func (s *CheckpointReader) Read(dir string, expectedCommit string) (Repo, error) {
 	dir = filepath.Join(dir, checkpointDirName)
 
-	/*
-		if expectedCommit != "" {
-			// no expected commit validation requested
-			b, err := ioutil.ReadFile(filepath.Join(dir, checkpointVersionFile))
-			if err != nil {
-				return nil, fmt.Errorf("failed reading checkpoint version file, err: %v", err)
-			}
-			checkpointCommit := string(b)
-			if checkpointCommit != expectedCommit {
-				return nil, ErrCheckpointNotExpected{CheckpointDir: dir, WantCommit: expectedCommit, HaveCommit: checkpointCommit}
-			}
-		}*/
+	if expectedCommit != "" {
+		// no expected commit validation requested
+		b, err := ioutil.ReadFile(filepath.Join(dir, checkpointVersionFile))
+		if err != nil {
+			return nil, fmt.Errorf("failed reading checkpoint version file, err: %v", err)
+		}
+		checkpointCommit := string(b)
+		if checkpointCommit != expectedCommit {
+			return nil, ErrCheckpointNotExpected{CheckpointDir: dir, WantCommit: expectedCommit, HaveCommit: checkpointCommit}
+		}
+	}
 
 	start := time.Now()
 	s.logger.Info("starting reading checkpoint")

@@ -28,9 +28,9 @@ func NewCheckpointWriter(logger logger.Logger) *CheckpointWriter {
 }
 
 func (s *CheckpointWriter) Write(repo Repo, dir string, lastCommit string) error {
-	//if lastCommit == "" {
-	//	panic("no last commit provided")
-	//}
+	if lastCommit == "" {
+		panic("no last commit provided")
+	}
 	start := time.Now()
 	s.logger.Info("starting writing checkpoint")
 	defer func() {

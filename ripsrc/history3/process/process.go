@@ -41,6 +41,8 @@ type Process struct {
 	unloader *repo.Unloader
 
 	checkpointsDir string
+
+	lastProcessedCommitHash string
 }
 
 type Opts struct {
@@ -159,8 +161,7 @@ func (s *Process) Run(resChan chan Result) error {
 	}
 
 	writer := repo.NewCheckpointWriter(s.opts.Logger)
-	// TODO:
-	err = writer.Write(s.repo, s.checkpointsDir, "")
+	err = writer.Write(s.repo, s.checkpointsDir, s.lastProcessedCommitHash)
 	if err != nil {
 		return err
 	}
@@ -306,6 +307,8 @@ func (s *Timing) OutputStats(wr io.Writer) {
 }
 
 func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ error) {
+	s.lastProcessedCommitHash = commit.Hash
+
 	start := time.Now()
 	defer func() {
 		dur := time.Since(start)
@@ -444,6 +447,8 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 const deletedPrefix = "@@@del@@@"
 
 func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.Commit) (res Result, _ error) {
+	s.lastProcessedCommitHash = commitHash
+
 	start := time.Now()
 	defer func() {
 		dur := time.Since(start)
