@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/profile"
+
 	"github.com/fatih/color"
 	"github.com/pinpt/ripsrc/ripsrc"
 )
@@ -28,6 +30,9 @@ type Opts struct {
 
 	// CommitFromIncl starts from specific commit (inclusive). May also include some previous commits.
 	CommitFromIncl string
+
+	// Profile set to one of mem, mutex, cpu, block, trace to enable profiling.
+	Profile string
 }
 
 type Stats struct {
@@ -43,6 +48,12 @@ type RepoError struct {
 
 func Run(ctx context.Context, out io.Writer, opts Opts) {
 	start := time.Now()
+
+	if opts.Profile != "" {
+		runEndHook := enableProfiling(opts.Profile)
+		defer runEndHook()
+	}
+
 	stats, repoErrs, err := runOnDirs(ctx, out, opts, opts.Dir, 1, start)
 	if err != nil {
 		fmt.Println("failed processing with err", err)
@@ -64,6 +75,46 @@ func Run(ctx context.Context, out io.Writer, opts Opts) {
 		fmt.Fprintf(color.Output, "%v", color.YellowString("Warning! Skipped %v empty repos\n", stats.SkippedEmptyRepos))
 	}
 	fmt.Fprintf(color.Output, "%v", color.GreenString("Finished processing repos %d entries %d in %v\n", stats.Repos, stats.Entries, time.Since(start)))
+}
+
+func enableProfiling(kind string) (onEnd func()) {
+	dir, _ := ioutil.TempDir("", "ripsrc-profile")
+
+	var stop func()
+
+	onEnd = func() {
+		stop()
+		fn := filepath.Join(dir, kind+".pprof")
+		fmt.Printf("to view profile, run `go tool pprof --pdf %s`\n", fn)
+	}
+
+	switch kind {
+	case "cpu":
+		{
+			stop = profile.Start(profile.CPUProfile, profile.ProfilePath(dir), profile.Quiet).Stop
+		}
+	case "mem":
+		{
+			stop = profile.Start(profile.MemProfile, profile.ProfilePath(dir), profile.Quiet).Stop
+		}
+	case "trace":
+		{
+			stop = profile.Start(profile.TraceProfile, profile.ProfilePath(dir), profile.Quiet).Stop
+		}
+	case "block":
+		{
+			stop = profile.Start(profile.BlockProfile, profile.ProfilePath(dir), profile.Quiet).Stop
+		}
+	case "mutex":
+		{
+			stop = profile.Start(profile.MutexProfile, profile.ProfilePath(dir), profile.Quiet).Stop
+		}
+	default:
+		{
+			panic("unexpected profile: " + kind)
+		}
+	}
+	return
 }
 
 func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, recurseLevels int, start time.Time) (stats Stats, repoErrors []RepoError, rerr error) {

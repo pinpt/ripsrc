@@ -24,7 +24,6 @@
 #   go-tests = true
 #   unused-packages = true
 
-
 [[constraint]]
   name = "github.com/boyter/scc"
   version = "2.1.0"
@@ -53,7 +52,6 @@
   name = "github.com/cespare/xxhash"
   version = "2.0"
 
-[prune]
-  go-tests = true
-  unused-packages = true
-  non-go = true
+[[constraint]]
+	  name = "github.com/pkg/profile"
+	  version = "1.2.1"
