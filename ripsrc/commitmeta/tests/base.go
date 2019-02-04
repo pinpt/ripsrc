@@ -1,11 +1,6 @@
 package tests
 
 import (
-	"archive/zip"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,6 +8,7 @@ import (
 
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/testutil"
 )
 
 type Test struct {
@@ -28,79 +24,21 @@ func NewTest(t *testing.T, repoName string) *Test {
 	return s
 }
 
-func (s *Test) Run() []commitmeta.Commit {
+func (s *Test) Run(opts *commitmeta.Opts) []commitmeta.Commit {
 	t := s.t
-	dir, err := ioutil.TempDir("", "ripsrc-test-")
-	if err != nil {
-		panic(err)
+	dirs := testutil.UnzipTestRepo(s.repoName)
+	defer dirs.Remove()
+
+	if opts == nil {
+		opts = &commitmeta.Opts{}
 	}
-	s.tempDir = dir
-	defer func() {
-		os.RemoveAll(s.tempDir)
-	}()
 
-	repoDirWrapper := filepath.Join(s.tempDir, "repo")
-	unzip(filepath.Join(".", "testdata", s.repoName+".zip"), repoDirWrapper)
-
-	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
-
-	p := commitmeta.New(repoDir, commitmeta.Opts{})
+	p := commitmeta.New(dirs.RepoDir, *opts)
 	res, err := p.RunSlice()
 	if err != nil {
 		t.Fatal(err)
 	}
 	return res
-}
-
-func firstDir(loc string) string {
-	entries, err := ioutil.ReadDir(loc)
-	if err != nil {
-		panic(err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			return entry.Name()
-		}
-	}
-	panic("no dir in: " + loc)
-}
-
-func unzip(archive, dir string) error {
-	r, err := zip.OpenReader(archive)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-	ef := func(f *zip.File) error {
-		r, err := f.Open()
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		p := filepath.Join(dir, f.Name)
-		if f.FileInfo().IsDir() {
-			os.MkdirAll(p, 0777)
-			return nil
-		}
-		os.MkdirAll(filepath.Dir(p), 0777)
-		w, err := os.Create(p)
-		if err != nil {
-			return err
-		}
-		defer w.Close()
-		_, err = io.Copy(w, r)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	for _, f := range r.File {
-		err := ef(f)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func assertCommits(t *testing.T, want, got []commitmeta.Commit) {

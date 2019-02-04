@@ -1,17 +1,13 @@
 package tests
 
 import (
-	"archive/zip"
 	"context"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
+	"github.com/pinpt/ripsrc/ripsrc/pkg/testutil"
 )
 
 var gitCommand = "git"
@@ -31,22 +27,11 @@ func NewTest(t *testing.T, repoName string) *Test {
 
 func (s *Test) Run(opts *process.Opts) []process.Result {
 	t := s.t
-	dir, err := ioutil.TempDir("", "ripsrc-test-")
-	if err != nil {
-		panic(err)
-	}
-	s.tempDir = dir
-	defer func() {
-		os.RemoveAll(s.tempDir)
-	}()
-
-	repoDirWrapper := filepath.Join(s.tempDir, "repo")
-	unzip(filepath.Join(".", "testdata", s.repoName+".zip"), repoDirWrapper)
-
-	repoDir := filepath.Join(repoDirWrapper, firstDir(repoDirWrapper))
+	dirs := testutil.UnzipTestRepo(s.repoName)
+	defer dirs.Remove()
 
 	ctx := context.Background()
-	err = gitexec.Prepare(ctx, gitCommand, repoDir)
+	err := gitexec.Prepare(ctx, gitCommand, dirs.RepoDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +39,7 @@ func (s *Test) Run(opts *process.Opts) []process.Result {
 	if opts == nil {
 		opts = &process.Opts{}
 	}
-	opts.RepoDir = repoDir
+	opts.RepoDir = dirs.RepoDir
 	opts.DisableCache = true
 
 	p := process.New(*opts)
@@ -63,61 +48,6 @@ func (s *Test) Run(opts *process.Opts) []process.Result {
 		t.Fatal(err)
 	}
 	return res
-}
-
-func firstDir(loc string) string {
-	entries, err := ioutil.ReadDir(loc)
-	if err != nil {
-		panic(err)
-	}
-	for _, entry := range entries {
-		n := entry.Name()
-		if n[0] == '_' || n[0] == '.' {
-			continue
-		}
-		if entry.IsDir() {
-			return entry.Name()
-		}
-	}
-	panic("no dir in: " + loc)
-}
-
-func unzip(archive, dir string) error {
-	r, err := zip.OpenReader(archive)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-	ef := func(f *zip.File) error {
-		r, err := f.Open()
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		p := filepath.Join(dir, f.Name)
-		if f.FileInfo().IsDir() {
-			os.MkdirAll(p, 0777)
-			return nil
-		}
-		os.MkdirAll(filepath.Dir(p), 0777)
-		w, err := os.Create(p)
-		if err != nil {
-			return err
-		}
-		defer w.Close()
-		_, err = io.Copy(w, r)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	for _, f := range r.File {
-		err := ef(f)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func assertResult(t *testing.T, want, got []process.Result) {

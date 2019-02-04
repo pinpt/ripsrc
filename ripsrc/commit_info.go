@@ -9,6 +9,7 @@ import (
 func (s *Ripper) getCommitInfo(ctx context.Context, repoDir string, opts *RipOpts) error {
 	copts := commitmeta.Opts{}
 	copts.CommitFromIncl = opts.CommitFromIncl
+	copts.AllBranches = opts.AllBranches
 	cm := commitmeta.New(repoDir, copts)
 	res, err := cm.RunMap()
 	if err != nil {

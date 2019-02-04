@@ -10,15 +10,15 @@ import (
 	"sort"
 	"time"
 
+	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
+
 	"github.com/pinpt/ripsrc/ripsrc/gitblame2"
 	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 
-	"github.com/pinpt/ripsrc/ripsrc/history3/process/parentsp"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/repo"
 
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 	"github.com/pinpt/ripsrc/ripsrc/history3/incblame"
-	"github.com/pinpt/ripsrc/ripsrc/history3/process/graph"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process/parser"
 )
 
@@ -26,8 +26,8 @@ type Process struct {
 	opts       Opts
 	gitCommand string
 
-	commitParents      graph.Graph
-	commitChildren     map[string][]string
+	graph *parentsgraph.Graph
+
 	childrenProcessed  map[string]int
 	maxLenOfStoredTree int
 
@@ -61,6 +61,12 @@ type Opts struct {
 	CommitFromIncl string
 	// DisableCache is unused.
 	DisableCache bool
+
+	// AllBranches set to true to process all branches. If false, processes commits starting from HEAD only.
+	AllBranches bool
+
+	// ParentsGraph is optional graph of commits. Pass to reuse, if not passed will be created.
+	ParentsGraph *parentsgraph.Graph
 }
 
 type Result struct {
@@ -74,9 +80,9 @@ func New(opts Opts) *Process {
 	if opts.Logger == nil {
 		opts.Logger = logger.NewDefaultLogger(os.Stdout)
 	}
-
 	s.opts = opts
 	s.gitCommand = "git"
+
 	s.timing = &Timing{}
 
 	if opts.CheckpointsDir != "" {
@@ -116,17 +122,20 @@ func (s *Process) Run(resChan chan Result) error {
 		close(resChan)
 	}()
 
-	err := s.retrieveParents()
-	if err != nil {
-		return err
-	}
-
-	s.commitChildren = map[string][]string{}
-	for commit, parents := range s.commitParents {
-		for _, p := range parents {
-			s.commitChildren[p] = append(s.commitChildren[p], commit)
+	if s.opts.ParentsGraph != nil {
+		s.graph = s.opts.ParentsGraph
+	} else {
+		s.graph = parentsgraph.New(parentsgraph.Opts{
+			RepoDir:     s.opts.RepoDir,
+			AllBranches: s.opts.AllBranches,
+			Logger:      s.opts.Logger,
+		})
+		err := s.graph.Read()
+		if err != nil {
+			return err
 		}
 	}
+
 	s.childrenProcessed = map[string]int{}
 
 	r, err := s.gitLogPatches()
@@ -152,7 +161,7 @@ func (s *Process) Run(resChan chan Result) error {
 	}()
 
 	for commit := range commits {
-		commit.Parents = s.commitParents[commit.Hash]
+		commit.Parents = s.graph.Parents[commit.Hash]
 		s.processCommit(resChan, commit)
 	}
 
@@ -175,10 +184,10 @@ func (s *Process) Run(resChan chan Result) error {
 }
 
 func (s *Process) trimGraphAfterCommitProcessed(commit string) {
-	parents := s.commitParents[commit]
+	parents := s.graph.Parents[commit]
 	for _, p := range parents {
 		s.childrenProcessed[p]++ // mark commit as processed
-		siblings := s.commitChildren[p]
+		siblings := s.graph.Children[p]
 		if s.childrenProcessed[p] == len(siblings) {
 			// done with parent, can delete it
 			s.unloader.Unload(p)
@@ -189,23 +198,6 @@ func (s *Process) trimGraphAfterCommitProcessed(commit string) {
 	if commitsInMemory > s.maxLenOfStoredTree {
 		s.maxLenOfStoredTree = commitsInMemory
 	}
-}
-
-func (s *Process) retrieveParents() error {
-	r, err := s.gitLogParents()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	pp := parentsp.New(r)
-	res, err := pp.Run()
-	if err != nil {
-		return err
-	}
-
-	s.commitParents = graph.Graph(res)
-	return nil
 }
 
 func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
@@ -462,7 +454,7 @@ func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.
 
 	//fmt.Println("processing merge commit", commitHash)
 
-	parentHashes := s.commitParents[commitHash]
+	parentHashes := s.graph.Parents[commitHash]
 	parentCount := len(parentHashes)
 
 	res.Commit = commitHash
@@ -688,7 +680,7 @@ EACHFILE:
 				// TODO: this is not covered by unit tests
 				ts := time.Now()
 				// find common parent commit for all
-				root = s.commitParents.LastCommonParent(parentHashes)
+				root = s.graph.Parents.LastCommonParent(parentHashes)
 				dur := time.Since(ts)
 				if dur > time.Second {
 					fmt.Printf("took %v to find last common parent for %v res: %v", dur, parentHashes, root)
@@ -745,23 +737,6 @@ func (s *Process) RunGetAll() (_ []Result, err error) {
 	return res2, err
 }
 
-func (s *Process) gitLogParents() (io.ReadCloser, error) {
-	args := []string{
-		"log",
-		"-m",
-		"--reverse",
-		"--no-abbrev-commit",
-		"--pretty=format:%H@%P",
-	}
-
-	ctx := context.Background()
-	//if s.opts.DisableCache {
-
-	return gitexec.ExecPiped(ctx, s.gitCommand, s.opts.RepoDir, args)
-	//}
-	//return gitexec.ExecWithCache(ctx, s.gitCommand, s.opts.RepoDir, args)
-}
-
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 	// empty file at tem location to set an empty attributesFile
 	f, err := ioutil.TempFile("", "ripsrc")
@@ -783,6 +758,10 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		"--reverse",
 		"--no-abbrev-commit",
 		"--pretty=short",
+	}
+
+	if s.opts.AllBranches {
+		args = append(args, "--all")
 	}
 
 	if s.opts.CommitFromIncl != "" {

@@ -19,6 +19,9 @@ import (
 
 type Opts struct {
 	CommitFromIncl string
+
+	// AllBranches set to true to process all branches. If false, processes commits reachable from HEAD only.
+	AllBranches bool
 }
 
 type Processor struct {
@@ -52,14 +55,6 @@ type Commit struct {
 	Parents []string
 	Signed  bool
 	//Previous *Commit
-}
-
-// Author returns either the author name (preference) or the email if not found
-func (c Commit) Author() string {
-	if c.AuthorName != "" {
-		return c.AuthorName
-	}
-	return c.AuthorEmail
 }
 
 // CommitFile is a specific detail around a file in a commit
@@ -180,6 +175,10 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--reverse",
 		"--numstat",
 		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
+	}
+
+	if s.opts.AllBranches {
+		args = append(args, "--all")
 	}
 
 	if s.opts.CommitFromIncl != "" {
