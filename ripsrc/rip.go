@@ -6,6 +6,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
+
+	"github.com/pinpt/ripsrc/ripsrc/branches"
+
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
 	"github.com/pinpt/ripsrc/ripsrc/fileinfo"
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
@@ -31,12 +35,6 @@ type BlameResult struct {
 	License            *License
 	Status             CommitStatus
 }
-
-// Commit is a specific detail around a commit
-type Commit = commitmeta.Commit
-
-// CommitFile is a specific detail around a file in a commit
-type CommitFile = commitmeta.CommitFile
 
 // BlameLine is a single line entry in blame
 type BlameLine struct {
@@ -64,11 +62,14 @@ const (
 )
 
 type Ripper struct {
-	commitMeta        map[string]Commit
+	commitMeta        map[string]commitmeta.Commit
 	GitProcessTimings process.Timing
 	CodeInfoTimings   *CodeInfoTimings
 
 	fileInfo *fileinfo.Process
+
+	parentsGraph *parentsgraph.Graph
+	branches     *branches.Process
 }
 
 func New() *Ripper {
@@ -87,6 +88,9 @@ type RipOpts struct {
 	// NoStrictResume forces incremental processing to avoid checking that it continues from the same commit in previously finished on. Since incrementals save a large number of previous commits, it works even starting on another commit.
 	NoStrictResume bool
 	CommitFromIncl string
+
+	// AllBranches set to true to process all branches. If false, processes HEAD only.
+	AllBranches bool
 }
 
 var ErrNoHeadCommit = errors.New("can't get valid output from git rev-parse HEAD")
@@ -109,6 +113,28 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 		return err
 	}
 
+	s.parentsGraph = parentsgraph.New(parentsgraph.Opts{
+		RepoDir:     repoDir,
+		AllBranches: opts.AllBranches,
+		Logger:      opts.Logger,
+	})
+
+	err = s.parentsGraph.Read()
+	if err != nil {
+		return err
+	}
+
+	if opts.AllBranches {
+		s.branches = branches.New(branches.Opts{
+			RepoDir:      repoDir,
+			ParentsGraph: s.parentsGraph,
+		})
+		err := s.branches.Run()
+		if err != nil {
+			return err
+		}
+	}
+
 	err = s.getCommitInfo(ctx, repoDir, opts)
 	if err != nil {
 		panic(err)
@@ -118,7 +144,7 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 	done := make(chan bool)
 	go func() {
 		for r1 := range gitRes {
-			rs, err := s.codeInfoFiles(r1)
+			rs, err := s.codeInfoFiles(r1, *opts)
 			if err != nil {
 				panic(err)
 			}
@@ -134,8 +160,9 @@ func (s *Ripper) Rip(ctx context.Context, repoDir string, res chan BlameResult, 
 		RepoDir:        repoDir,
 		CheckpointsDir: opts.CheckpointsDir,
 		NoStrictResume: opts.NoStrictResume,
+		CommitFromIncl: opts.CommitFromIncl,
+		AllBranches:    opts.AllBranches,
 	}
-	processOpts.CommitFromIncl = opts.CommitFromIncl
 	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)
 	if err != nil {

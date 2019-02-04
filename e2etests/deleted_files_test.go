@@ -8,7 +8,7 @@ import (
 
 func TestDeletedFiles(t *testing.T) {
 	test := NewTest(t, "deleted_files")
-	got := test.Run()
+	got := test.Run(nil)
 
 	u1n := "User1"
 	u1e := "user1@example.com"

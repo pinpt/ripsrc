@@ -8,7 +8,7 @@ import (
 
 func TestMergeBasic(t *testing.T) {
 	test := NewTest(t, "merge_basic")
-	got := test.Run()
+	got := test.Run(nil)
 
 	u1n := "User1"
 	u1e := "user1@example.com"

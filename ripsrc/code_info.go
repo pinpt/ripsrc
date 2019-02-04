@@ -14,8 +14,14 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
 
-func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error) {
-	commit := s.commitMeta[blame.Commit]
+func (s *Ripper) codeInfoFiles(blame process.Result, opts RipOpts) (res []BlameResult, _ error) {
+	commitMeta := s.commitMeta[blame.Commit]
+	var branches []string
+	if opts.AllBranches {
+		branches = s.branches.BranchesThatIncludeCommit(commitMeta.SHA)
+	}
+	commit := commitFromMeta(commitMeta, branches)
+
 	// check that files are included in both
 	files := map[string]bool{}
 	for _, cf := range commit.Files {
@@ -44,6 +50,7 @@ func (s *Ripper) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 
 		r := BlameResult{}
 		r.Filename = filePath
+
 		r.Commit = commit
 
 		f, ok := commit.Files[filePath]

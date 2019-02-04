@@ -10,7 +10,7 @@ import (
 // If the file in repo was a binary at some point and then switched to text and was modified, then git log with patches does not contain the full file content. There are 2 options to fix this, either we ignore all files that at some point in history were binary or retrieve the full file content for these cases separately without using log and patches.
 func TestEditingFormerBinFile(t *testing.T) {
 	test := NewTest(t, "editing_former_bin_file")
-	got := test.Run()
+	got := test.Run(nil)
 
 	u1n := "User1"
 	u1e := "user1@example.com"
