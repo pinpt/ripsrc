@@ -34,6 +34,9 @@ type Opts struct {
 
 	// AllBranches set to true to process all branches. If false, processes HEAD only.
 	AllBranches bool
+
+	// BranchesUseOrigin by default ripsrc lists only local branches when using Branches method. Set this to true to use origin/ branches instead.
+	BranchesUseOrigin bool
 }
 
 // Ripsrc runs on a single repo.

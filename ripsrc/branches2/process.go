@@ -47,6 +47,7 @@ type Opts struct {
 	Concurrency int
 	RepoDir     string
 	CommitGraph *parentsgraph.Graph
+	UseOrigin   bool
 }
 
 type Process struct {

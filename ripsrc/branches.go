@@ -27,16 +27,21 @@ func (s *Ripsrc) Branches(ctx context.Context, res chan Branch) error {
 	}
 
 	res2 := make(chan Branch)
+	done := make(chan bool)
 	go func() {
 		for r := range res2 {
 			res <- r
 		}
+		done <- true
 	}()
 	opts := branches2.Opts{}
+	opts.UseOrigin = s.opts.BranchesUseOrigin
 	opts.CommitGraph = s.commitGraph
 	opts.RepoDir = s.opts.RepoDir
 	pr := branches2.New(opts)
-	return pr.Run(ctx, res2)
+	err = pr.Run(ctx, res2)
+	<-done
+	return err
 }
 
 func (s *Ripsrc) BranchesSlice(ctx context.Context) (res []Branch, _ error) {

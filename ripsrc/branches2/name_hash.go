@@ -52,7 +52,11 @@ func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
 		"for-each-ref",
 		"--format",
 		"%(objectname) %(refname:short)",
-		"refs/heads",
+	}
+	if s.opts.UseOrigin {
+		args = append(args, "refs/remotes/origin")
+	} else {
+		args = append(args, "refs/heads")
 	}
 	data, err := execCommand("git", s.opts.RepoDir, args)
 	if err != nil {
@@ -77,6 +81,12 @@ func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
 		b := nameAndHash{}
 		b.Commit = parts[0]
 		b.Name = parts[1]
+		if s.opts.UseOrigin {
+			if !strings.HasPrefix(b.Name, "origin/") {
+				panic("branch name does not have origin/ prefix")
+			}
+			b.Name = strings.TrimPrefix(b.Name, "origin/")
+		}
 		if b.Name == defaultBranch {
 			continue
 		}
