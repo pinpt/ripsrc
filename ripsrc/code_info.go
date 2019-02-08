@@ -14,13 +14,8 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
 )
 
-func (s *Ripper) codeInfoFiles(blame process.Result, opts RipOpts) (res []BlameResult, _ error) {
-	commitMeta := s.commitMeta[blame.Commit]
-	var branches []string
-	if opts.AllBranches {
-		branches = s.branches.BranchesThatIncludeCommit(commitMeta.SHA)
-	}
-	commit := commitFromMeta(commitMeta, branches)
+func (s *Ripsrc) codeInfoFiles(blame process.Result) (res []BlameResult, _ error) {
+	commit := s.commitMeta[blame.Commit]
 
 	// check that files are included in both
 	files := map[string]bool{}
@@ -112,7 +107,7 @@ func (s *CodeInfoTimings) OutputStats(wr io.Writer) {
 	fmt.Fprintln(wr, "total time", s.Time)
 }
 
-func (s *Ripper) codeInfoFile(filePath string, bl *incblame.Blame, fileBytes []byte, res BlameResult) (BlameResult, error) {
+func (s *Ripsrc) codeInfoFile(filePath string, bl *incblame.Blame, fileBytes []byte, res BlameResult) (BlameResult, error) {
 	start := time.Now()
 	defer func() {
 		dur := time.Since(start)
@@ -157,7 +152,7 @@ func blameToByteLines(bl *incblame.Blame) (res [][]byte) {
 	return
 }
 
-func (s *Ripper) codeStats(filePath string, bl *incblame.Blame, fileBytes []byte, lines []*statsLine, res BlameResult) (BlameResult, error) {
+func (s *Ripsrc) codeStats(filePath string, bl *incblame.Blame, fileBytes []byte, lines []*statsLine, res BlameResult) (BlameResult, error) {
 	statcallback := &statsProcessor{lines: lines}
 	filejob := &processor.FileJob{
 		Filename: filePath,

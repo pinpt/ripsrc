@@ -29,6 +29,13 @@ func New(opts Opts) *Graph {
 	return s
 }
 
+func NewFromMap(parents map[string][]string) *Graph {
+	s := &Graph{}
+	s.Parents = parents
+	s.childrenFromParents()
+	return s
+}
+
 func (s *Graph) Read() error {
 	start := time.Now()
 	s.opts.Logger.Info("parentsgraph: starting reading")
@@ -39,6 +46,11 @@ func (s *Graph) Read() error {
 	if err != nil {
 		return err
 	}
+	s.childrenFromParents()
+	return nil
+}
+
+func (s *Graph) childrenFromParents() {
 	s.Children = map[string][]string{}
 	for commit, parents := range s.Parents {
 		if _, ok := s.Children[commit]; !ok {
@@ -52,7 +64,6 @@ func (s *Graph) Read() error {
 	for _, data := range s.Children {
 		sort.Strings(data)
 	}
-	return nil
 }
 
 func (s *Graph) retrieveParents() error {

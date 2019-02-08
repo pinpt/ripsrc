@@ -57,6 +57,14 @@ type Commit struct {
 	//Previous *Commit
 }
 
+// Author returns either the author name (preference) or the email if not found
+func (c Commit) Author() string {
+	if c.AuthorName != "" {
+		return c.AuthorName
+	}
+	return c.AuthorEmail
+}
+
 // CommitFile is a specific detail around a file in a commit
 type CommitFile struct {
 	Filename    string

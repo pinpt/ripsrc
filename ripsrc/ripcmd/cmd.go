@@ -221,8 +221,6 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 		return 0, errRevParseFailed
 	}
 
-	ripper := ripsrc.New()
-
 	res := make(chan ripsrc.BlameResult)
 	done := make(chan bool)
 	go func() {
@@ -258,10 +256,13 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 		done <- true
 	}()
 
-	ripOpts := &ripsrc.RipOpts{}
+	ripOpts := ripsrc.Opts{}
+	ripOpts.RepoDir = repoDir
 	ripOpts.CommitFromIncl = opts.CommitFromIncl
 	ripOpts.NoStrictResume = true
-	err := ripper.Rip(ctx, repoDir, res, ripOpts)
+
+	ripper := ripsrc.New(ripOpts)
+	err := ripper.Blame(ctx, res)
 	<-done
 
 	if err != nil {

@@ -6,11 +6,11 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
 )
 
-func (s *Ripper) getCommitInfo(ctx context.Context, repoDir string, opts *RipOpts) error {
+func (s *Ripsrc) getCommitInfo(ctx context.Context) error {
 	copts := commitmeta.Opts{}
-	copts.CommitFromIncl = opts.CommitFromIncl
-	copts.AllBranches = opts.AllBranches
-	cm := commitmeta.New(repoDir, copts)
+	copts.CommitFromIncl = s.opts.CommitFromIncl
+	copts.AllBranches = s.opts.AllBranches
+	cm := commitmeta.New(s.opts.RepoDir, copts)
 	res, err := cm.RunMap()
 	if err != nil {
 		return err
