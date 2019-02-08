@@ -11,6 +11,7 @@ import (
 type Branch = branches2.Branch
 
 func (s *Ripsrc) Branches(ctx context.Context, res chan Branch) error {
+	defer close(res)
 	if !s.opts.AllBranches {
 		return errors.New("Branches call is only allowed when AllBranches=true")
 	}
@@ -27,7 +28,6 @@ func (s *Ripsrc) Branches(ctx context.Context, res chan Branch) error {
 
 	res2 := make(chan Branch)
 	go func() {
-		defer close(res)
 		for r := range res2 {
 			res <- r
 		}
@@ -49,9 +49,6 @@ func (s *Ripsrc) BranchesSlice(ctx context.Context) (res []Branch, _ error) {
 		done <- true
 	}()
 	err := s.Branches(ctx, resChan)
-	if err != nil {
-		return nil, err
-	}
 	<-done
-	return res, nil
+	return res, err
 }

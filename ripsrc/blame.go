@@ -122,9 +122,6 @@ func (s *Ripsrc) BlameSlice(ctx context.Context) (res []BlameResult, _ error) {
 		done <- true
 	}()
 	err := s.Blame(ctx, resChan)
-	if err != nil {
-		return nil, err
-	}
 	<-done
-	return res, nil
+	return res, err
 }
