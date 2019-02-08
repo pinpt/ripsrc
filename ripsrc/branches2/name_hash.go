@@ -3,7 +3,6 @@ package branches2
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
@@ -49,8 +48,6 @@ func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("defualt bfa", defaultBranch)
-
 	args := []string{
 		"for-each-ref",
 		"--format",

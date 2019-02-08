@@ -98,6 +98,7 @@ func (s *Ripsrc) Blame(ctx context.Context, res chan BlameResult) error {
 		NoStrictResume: s.opts.NoStrictResume,
 		CommitFromIncl: s.opts.CommitFromIncl,
 		AllBranches:    s.opts.AllBranches,
+		ParentsGraph:   s.commitGraph,
 	}
 	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)
