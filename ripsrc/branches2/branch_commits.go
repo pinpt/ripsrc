@@ -21,8 +21,13 @@ func newBranchCommitsCache(gr *parentsgraph.Graph, defaultHead string) *branchCo
 
 func (s *branchCommitsCache) reachable(gr *parentsgraph.Graph, defaultHead string) {
 	s.reachableFromHead = map[string]bool{}
+	done := map[string]bool{}
 	var rec func(string)
 	rec = func(hash string) {
+		if done[hash] {
+			return
+		}
+		done[hash] = true
 		s.reachableFromHead[hash] = true
 		for _, p := range gr.Parents[hash] {
 			rec(p)
@@ -36,15 +41,20 @@ func branchCommits(
 	defaultHead string,
 	cache *branchCommitsCache,
 	branchHead string) (commits []string, branchedFrom []string) {
-
 	reachableFromHead := cache.reachableFromHead
 
 	if reachableFromHead[branchHead] {
 		// this is a merged commit, we would need to recreate reachableFromHead without merge commit
 		// this is an expensive operation
 		reachableFromHead = map[string]bool{}
+		done := map[string]bool{}
 		var rec func(string)
 		rec = func(hash string) {
+			if done[hash] {
+				return
+			}
+			done[hash] = true
+
 			reachableFromHead[hash] = true
 			if hash == branchHead {
 				// remove merge commit to branch head
@@ -60,9 +70,17 @@ func branchCommits(
 		}
 		rec(defaultHead)
 	}
+
+	commitsDone := map[string]bool{}
+
 	var rec func(string)
 	rec = func(hash string) {
+		if commitsDone[hash] {
+			return
+		}
 		commits = append(commits, hash)
+		commitsDone[hash] = true
+
 		par, ok := gr.Parents[hash]
 		if !ok {
 			panic("commit not found in tree")
@@ -85,21 +103,43 @@ func branchCommits(
 }
 
 func dedupLinearFromHead(gr *parentsgraph.Graph, commits []string, defaultHead string) []string {
+	hasDeep := map[string]bool{}
 	commitsHash := toSet(commits)
-	dup := map[string]bool{}
-	var rec func(string, string)
-	rec = func(hash, active string) {
-		if commitsHash[hash] {
-			if active != "" {
-				dup[active] = true
+	{
+		var rec func(string) bool
+		done := map[string]bool{}
+		rec = func(hash string) (has bool) {
+			if done[hash] {
+				return hasDeep[hash]
 			}
-			active = hash
+			done[hash] = true
+			if commitsHash[hash] {
+				has = true
+			}
+			for _, p := range gr.Parents[hash] {
+				r := rec(p)
+				if r {
+					has = true
+				}
+			}
+			hasDeep[hash] = has
+			return
 		}
-		for _, p := range gr.Parents[hash] {
-			rec(p, active)
+		rec(defaultHead)
+	}
+
+	dup := map[string]bool{}
+	{
+		for h := range commitsHash {
+			d := false
+			for _, p := range gr.Parents[h] {
+				if hasDeep[p] {
+					d = true
+				}
+			}
+			dup[h] = d
 		}
 	}
-	rec(defaultHead, "")
 
 	var res []string
 	for c := range commitsHash {

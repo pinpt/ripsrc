@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
+
 	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
 )
 
@@ -44,6 +46,7 @@ type Branch struct {
 }
 
 type Opts struct {
+	Logger      logger.Logger
 	Concurrency int
 	RepoDir     string
 	CommitGraph *parentsgraph.Graph
@@ -146,6 +149,7 @@ func headCommit(ctx context.Context, gitCommand string, repoDir string) (string,
 }
 
 func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, resChan chan Branch) error {
+	s.opts.Logger.Info("processing branch", "name", nameAndHash.Name, "commit", nameAndHash.Commit)
 	res := Branch{}
 	res.Name = nameAndHash.Name
 	res.Commits, res.BranchedFromCommits = branchCommits(s.opts.CommitGraph, s.defaultHead, s.branchCommitsCache, nameAndHash.Commit)

@@ -51,6 +51,7 @@ func (s *Test) Run() []branches2.Branch {
 	if s.opts != nil {
 		opts = *s.opts
 	}
+	opts.Logger = logger.NewDefaultLogger(os.Stdout)
 	opts.Concurrency = 1
 	opts.RepoDir = repoDir
 	opts.CommitGraph = commitGraph

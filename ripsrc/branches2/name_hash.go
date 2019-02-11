@@ -87,6 +87,9 @@ func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
 			}
 			b.Name = strings.TrimPrefix(b.Name, "origin/")
 		}
+		if b.Name == "HEAD" {
+			continue
+		}
 		if b.Name == defaultBranch {
 			continue
 		}

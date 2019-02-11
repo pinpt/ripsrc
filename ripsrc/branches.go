@@ -35,6 +35,7 @@ func (s *Ripsrc) Branches(ctx context.Context, res chan Branch) error {
 		done <- true
 	}()
 	opts := branches2.Opts{}
+	opts.Logger = s.opts.Logger
 	opts.UseOrigin = s.opts.BranchesUseOrigin
 	opts.CommitGraph = s.commitGraph
 	opts.RepoDir = s.opts.RepoDir

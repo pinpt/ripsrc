@@ -131,3 +131,17 @@ func TestProcessBranchMultiSource(t *testing.T) {
 	assertCommits(t, got, []string{"b1"})
 	assertCommits(t, branchedFrom, []string{"m2", "m3"})
 }
+
+func TestProcessBranchDups(t *testing.T) {
+	gr := parentsgraph.NewFromMap(map[string][]string{
+		"m1": nil,
+		"b1": []string{"m1"},
+		"b2": []string{"b1"},
+		"b3": []string{"b1"},
+		"b4": []string{"b2", "b3"},
+	})
+	cache := newBranchCommitsCache(gr, "m1")
+	got, branchedFrom := branchCommits(gr, "m1", cache, "b4")
+	assertCommits(t, got, []string{"b2", "b1", "b3", "b4"})
+	assertCommits(t, branchedFrom, []string{"m1"})
+}
