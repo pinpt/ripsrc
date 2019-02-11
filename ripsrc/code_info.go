@@ -15,7 +15,13 @@ import (
 )
 
 func (s *Ripsrc) codeInfoFiles(blame process.Result) (res []BlameResult, _ error) {
-	commit := s.commitMeta[blame.Commit]
+	commitMeta := s.commitMeta[blame.Commit]
+	onDefault := true
+	if s.defaultBranchCommits != nil {
+		onDefault = s.defaultBranchCommits[commitMeta.SHA]
+	}
+
+	commit := commitFromMeta(commitMeta, onDefault)
 
 	// check that files are included in both
 	files := map[string]bool{}
