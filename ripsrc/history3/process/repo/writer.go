@@ -34,7 +34,7 @@ func (s *CheckpointWriter) Write(repo Repo, dir string, lastCommit string) error
 	start := time.Now()
 	s.logger.Info("starting writing checkpoint")
 	defer func() {
-		s.logger.Info("finished writing checkpoint", "dur", time.Since(start))
+		s.logger.Info("finished writing checkpoint", "duration", time.Since(start))
 	}()
 	s.logger.Info("preparing to write", "len(commits)", len(repo))
 

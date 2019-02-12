@@ -26,7 +26,7 @@ type Branch struct {
 	// IsMerged is true if this branch was merged into default branch
 	IsMerged bool
 
-	// MergeCommit is the hash of the merged commit. Set iff IsMerged=true
+	// MergeCommit is the hash of the merged commit. Set if IsMerged=true
 	MergeCommit string
 
 	// BranchedFromCommits are the branch points where the branch was originally created from master.
