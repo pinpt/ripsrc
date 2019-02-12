@@ -4,8 +4,6 @@ import (
 	"context"
 	"os"
 
-	"github.com/pinpt/ripsrc/ripsrc/branch"
-
 	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
 
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
@@ -54,8 +52,6 @@ type Ripsrc struct {
 	fileInfo *fileinfo.Process
 
 	commitGraph *parentsgraph.Graph
-
-	defaultBranchCommits branch.HasCommits
 }
 
 func New(opts Opts) *Ripsrc {
