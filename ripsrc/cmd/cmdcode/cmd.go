@@ -80,7 +80,7 @@ func Run(ctx context.Context, out io.Writer, opts Opts) {
 
 func runOnDirs(ctx context.Context, wr io.Writer, opts Opts, dir string, start time.Time) (stats Stats, repoErrors []RepoError, rerr error) {
 
-	err := gitrepos.IterDir(dir, 1, func(repo string) error {
+	err := gitrepos.IterDir(dir, 1, func(dir string) error {
 		entries, err := runOnRepo(ctx, wr, opts, dir, start)
 		stats.Repos += 1
 		stats.Entries += entries
