@@ -23,6 +23,9 @@ type Branch struct {
 	// Name of the branch
 	Name string
 
+	// IsDefault is true if this is default branch of the repo. Typically true for master.
+	IsDefault bool
+
 	// IsMerged is true if this branch was merged into default branch
 	IsMerged bool
 
@@ -46,19 +49,19 @@ type Branch struct {
 }
 
 type Opts struct {
-	Logger      logger.Logger
-	Concurrency int
-	RepoDir     string
-	CommitGraph *parentsgraph.Graph
-	UseOrigin   bool
+	Logger               logger.Logger
+	IncludeDefaultBranch bool
+	Concurrency          int
+	RepoDir              string
+	CommitGraph          *parentsgraph.Graph
+	UseOrigin            bool
 }
 
 type Process struct {
 	opts Opts
 
+	defaultBranch      nameAndHash
 	branchCommitsCache *branchCommitsCache
-
-	defaultHead string
 }
 
 func New(opts Opts) *Process {
@@ -73,10 +76,22 @@ func New(opts Opts) *Process {
 func (s *Process) Run(ctx context.Context, res chan Branch) error {
 	defer close(res)
 
-	err := s.markReachableFromHead(ctx)
+	var err error
+	s.defaultBranch, err = getDefaultBranch(ctx, "git", s.opts.RepoDir)
 	if err != nil {
 		return err
 	}
+
+	if s.opts.IncludeDefaultBranch {
+		res <- Branch{
+			ID:        branchID(s.defaultBranch.Name, nil),
+			Name:      s.defaultBranch.Name,
+			IsDefault: true,
+			Commits:   getAllCommits(s.opts.CommitGraph, s.defaultBranch.Commit),
+		}
+	}
+
+	s.branchCommitsCache = newBranchCommitsCache(s.opts.CommitGraph, s.defaultBranch.Commit)
 
 	nameAndHashes, err := s.getNamesAndHashes()
 	if err != nil {
@@ -111,6 +126,29 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 	return lastErr
 }
 
+func getAllCommits(gr *parentsgraph.Graph, head string) (res []string) {
+	done := map[string]bool{}
+	var rec func(string)
+	rec = func(h string) {
+		if done[h] {
+			return
+		}
+		done[h] = true
+		res = append(res, h)
+		par, ok := gr.Parents[h]
+		if !ok {
+			panic("commit not found in tree")
+		}
+		// reverse order for better result ordering
+		for i := len(par) - 1; i >= 0; i-- {
+			rec(par[i])
+		}
+	}
+	rec(head)
+	reverseStrings(res)
+	return
+}
+
 func (s *Process) RunSlice(ctx context.Context) (res []Branch, _ error) {
 	resChan := make(chan Branch)
 	done := make(chan bool)
@@ -125,15 +163,30 @@ func (s *Process) RunSlice(ctx context.Context) (res []Branch, _ error) {
 	return res, err
 }
 
-func (s *Process) markReachableFromHead(ctx context.Context) error {
-	head, err := headCommit(ctx, "git", s.opts.RepoDir)
+func getDefaultBranch(ctx context.Context, gitCommand string, repoDir string) (res nameAndHash, _ error) {
+	name, err := headBranch(ctx, gitCommand, repoDir)
 	if err != nil {
-		return err
+		return res, err
 	}
-	s.defaultHead = head
+	commit, err := headCommit(ctx, gitCommand, repoDir)
+	if err != nil {
+		return res, err
+	}
+	res.Name = name
+	res.Commit = commit
+	return res, nil
+}
 
-	s.branchCommitsCache = newBranchCommitsCache(s.opts.CommitGraph, head)
-	return nil
+func headBranch(ctx context.Context, gitCommand string, repoDir string) (string, error) {
+	data, err := execCommand(gitCommand, repoDir, []string{"rev-parse", "--abbrev-ref", "HEAD"})
+	if err != nil {
+		return "", err
+	}
+	res := strings.TrimSpace(string(data))
+	if res == "HEAD" {
+		return "", errors.New("cound not retrieve the name of the default branch")
+	}
+	return res, nil
 }
 
 func headCommit(ctx context.Context, gitCommand string, repoDir string) (string, error) {
@@ -152,7 +205,7 @@ func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, re
 	s.opts.Logger.Info("processing branch", "name", nameAndHash.Name, "commit", nameAndHash.Commit)
 	res := Branch{}
 	res.Name = nameAndHash.Name
-	res.Commits, res.BranchedFromCommits = branchCommits(s.opts.CommitGraph, s.defaultHead, s.branchCommitsCache, nameAndHash.Commit)
+	res.Commits, res.BranchedFromCommits = branchCommits(s.opts.CommitGraph, s.defaultBranch.Commit, s.branchCommitsCache, nameAndHash.Commit)
 	res.ID = branchID(res.Name, res.BranchedFromCommits)
 	if s.branchCommitsCache.reachableFromHead[nameAndHash.Commit] {
 		res.IsMerged = true

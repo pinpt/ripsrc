@@ -39,6 +39,7 @@ func (s *Ripsrc) Branches(ctx context.Context, res chan Branch) error {
 	opts.UseOrigin = s.opts.BranchesUseOrigin
 	opts.CommitGraph = s.commitGraph
 	opts.RepoDir = s.opts.RepoDir
+	opts.IncludeDefaultBranch = true
 	pr := branches2.New(opts)
 	err = pr.Run(ctx, res2)
 	<-done
