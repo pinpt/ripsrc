@@ -6,21 +6,13 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
 )
 
-type branchCommitsCache struct {
-	// reachableFromHead is a map that has true for all commits that belong to head
-	// (in default ripsrc config, that will be the default branch)
-	// map[commitSha]isReachableFromHead
-	reachableFromHead map[string]bool
-}
+// reachableFromHead is a map that has true for all commits that belong to head
+// (in default ripsrc config, that will be the default branch)
+// map[commitSha]isReachableFromHead
+type reachableFromHead map[string]bool
 
-func newBranchCommitsCache(gr *parentsgraph.Graph, defaultHead string) *branchCommitsCache {
-	s := &branchCommitsCache{}
-	s.reachable(gr, defaultHead)
-	return s
-}
-
-func (s *branchCommitsCache) reachable(gr *parentsgraph.Graph, defaultHead string) {
-	s.reachableFromHead = map[string]bool{}
+func newReachableFromHead(gr *parentsgraph.Graph, defaultHead string) reachableFromHead {
+	res := map[string]bool{}
 	done := map[string]bool{}
 	var rec func(string)
 	rec = func(hash string) {
@@ -28,20 +20,20 @@ func (s *branchCommitsCache) reachable(gr *parentsgraph.Graph, defaultHead strin
 			return
 		}
 		done[hash] = true
-		s.reachableFromHead[hash] = true
+		res[hash] = true
 		for _, p := range gr.Parents[hash] {
 			rec(p)
 		}
 	}
 	rec(defaultHead)
+	return res
 }
 
 func branchCommits(
 	gr *parentsgraph.Graph,
 	defaultHead string,
-	cache *branchCommitsCache,
+	reachableFromHead reachableFromHead,
 	branchHead string) (commits []string, branchedFrom []string) {
-	reachableFromHead := cache.reachableFromHead
 
 	if reachableFromHead[branchHead] {
 		// this is a merged commit, we would need to recreate reachableFromHead without merge commit

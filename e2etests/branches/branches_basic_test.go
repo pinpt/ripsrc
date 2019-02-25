@@ -26,6 +26,8 @@ func TestE2EBranchesBasic1(t *testing.T) {
 			IsMerged:            false,
 			Commits:             []string{c2},
 			BranchedFromCommits: []string{c1},
+			BehindDefaultCount:  0,
+			AheadDefaultCount:   1,
 		},
 	}
 

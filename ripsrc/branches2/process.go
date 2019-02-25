@@ -46,6 +46,14 @@ type Branch struct {
 	// Commits[0] is the first commit on this branch
 	// Commits[len-1] is the last commit on this branch
 	Commits []string
+
+	// BehindDefaultCount is the number of commits on master that are not in this branch.
+	// If the branch isMerges = true the value is 0.
+	BehindDefaultCount int
+
+	// AheadDefaultCount is the number of commits made to this branch, not including commits on master.
+	// Same as len(Commits)
+	AheadDefaultCount int
 }
 
 type Opts struct {
@@ -60,8 +68,9 @@ type Opts struct {
 type Process struct {
 	opts Opts
 
-	defaultBranch      nameAndHash
-	branchCommitsCache *branchCommitsCache
+	defaultBranch nameAndHash
+
+	reachableFromHead reachableFromHead
 }
 
 func New(opts Opts) *Process {
@@ -91,7 +100,7 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 		}
 	}
 
-	s.branchCommitsCache = newBranchCommitsCache(s.opts.CommitGraph, s.defaultBranch.Commit)
+	s.reachableFromHead = newReachableFromHead(s.opts.CommitGraph, s.defaultBranch.Commit)
 
 	nameAndHashes, err := s.getNamesAndHashes()
 	if err != nil {
@@ -203,14 +212,21 @@ func headCommit(ctx context.Context, gitCommand string, repoDir string) (string,
 
 func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, resChan chan Branch) error {
 	s.opts.Logger.Info("processing branch", "name", nameAndHash.Name, "commit", nameAndHash.Commit)
+	gr := s.opts.CommitGraph
 	res := Branch{}
 	res.Name = nameAndHash.Name
-	res.Commits, res.BranchedFromCommits = branchCommits(s.opts.CommitGraph, s.defaultBranch.Commit, s.branchCommitsCache, nameAndHash.Commit)
+	defaultHead := s.defaultBranch.Commit
+	res.Commits, res.BranchedFromCommits = branchCommits(gr, defaultHead, s.reachableFromHead, nameAndHash.Commit)
 	res.ID = branchID(res.Name, res.BranchedFromCommits)
-	if s.branchCommitsCache.reachableFromHead[nameAndHash.Commit] {
+	if s.reachableFromHead[nameAndHash.Commit] {
 		res.IsMerged = true
-		res.MergeCommit = getMergeCommit(s.opts.CommitGraph, s.branchCommitsCache, nameAndHash.Commit)
+		res.MergeCommit = getMergeCommit(gr, s.reachableFromHead, nameAndHash.Commit)
+	} else {
+		if len(res.BranchedFromCommits) >= 1 {
+			res.BehindDefaultCount = behindBranch(gr, s.reachableFromHead, nameAndHash.Commit, defaultHead)
+		}
 	}
+	res.AheadDefaultCount = len(res.Commits)
 	resChan <- res
 	return nil
 }

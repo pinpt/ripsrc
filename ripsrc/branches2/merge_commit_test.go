@@ -12,7 +12,7 @@ func TestGetMergeCommit1(t *testing.T) {
 		"b1": []string{"m1"},
 		"m2": []string{"m1", "b1"},
 	})
-	cache := newBranchCommitsCache(gr, "m2")
+	cache := newReachableFromHead(gr, "m2")
 	got := getMergeCommit(gr, cache, "b1")
 	want := "m2"
 	if got != want {
@@ -26,7 +26,7 @@ func TestGetMergeCommit2(t *testing.T) {
 		"b1": []string{"m1"},
 		"m2": []string{"m1", "b1"},
 	})
-	cache := newBranchCommitsCache(gr, "m1")
+	cache := newReachableFromHead(gr, "m1")
 	got := getMergeCommit(gr, cache, "b1")
 	want := ""
 	if got != want {
@@ -42,7 +42,7 @@ func TestGetMergeCommit3(t *testing.T) {
 		"m3": []string{"m1", "b1"},
 		"m4": []string{"m2", "m3"},
 	})
-	cache := newBranchCommitsCache(gr, "m4")
+	cache := newReachableFromHead(gr, "m4")
 	got := getMergeCommit(gr, cache, "b1")
 	want := "m2"
 	if got != want {
