@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 const cacheDir = "pp-git-cache"
@@ -21,7 +20,7 @@ const casheVersion = "1"
 func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args []string) (io.ReadCloser, error) {
 	//return ExecPiped(ctx, gitCommand, repoDir, args)
 
-	start := time.Now()
+	//start := time.Now()
 	headCommit := headCommit(ctx, gitCommand, repoDir)
 	cacheKey := hashString(casheVersion + "@" + strings.Join(args, "@") + headCommit)[0:32]
 
@@ -29,7 +28,7 @@ func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args 
 
 	f, err := os.Open(loc)
 	if err == nil {
-		fmt.Println("Using cache for ", repoDir, strings.Join(args, " "))
+		//fmt.Println("Using cache for ", repoDir, strings.Join(args, " "))
 		return newGzipFileCloser(f)
 	} else {
 		if !os.IsNotExist(err) {
@@ -52,7 +51,7 @@ func ExecWithCache(ctx context.Context, gitCommand string, repoDir string, args 
 		return nil, err
 	}
 
-	fmt.Println("Took", time.Since(start), "to run git", repoDir, strings.Join(args, " "))
+	//fmt.Println("Took", time.Since(start), "to run git", repoDir, strings.Join(args, " "))
 
 	f, err = os.Open(loc)
 	if err != nil {
