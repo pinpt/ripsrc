@@ -44,7 +44,7 @@ func (s *Ripper) codeInfoFiles(blame process.Result, opts RipOpts) (res []BlameR
 
 	for filePath, blf := range blame.Files {
 		if filePath == "" {
-			fmt.Printf("empty file path, commit %v", commit.SHA)
+			opts.Logger.Info("empty file path, commit %v", commit.SHA)
 			continue
 		}
 
@@ -55,7 +55,7 @@ func (s *Ripper) codeInfoFiles(blame process.Result, opts RipOpts) (res []BlameR
 
 		f, ok := commit.Files[filePath]
 		if !ok {
-			fmt.Printf("Changed file was not found in stats log entry, file %v commit %v\n", r.Filename, commit.SHA)
+			opts.Logger.Debug("Changed file was not found in stats log entry, file %v commit %v\n", r.Filename, commit.SHA)
 			continue
 			panic(fmt.Errorf("Changed file was not found in stats log entry, file %v commit %v", r.Filename, commit.SHA))
 		}
