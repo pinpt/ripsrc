@@ -17,7 +17,7 @@ go get -u github.com/pinpt/ripsrc
 You can use the example command line implementation provided.
 
 ```
-ripsrc <gitfolder>
+ripsrc code <gitfolder>
 ```
 
 This will rip through all the commits in history order (oldest to newest), analyze each file and dump out some basic results.
@@ -36,10 +36,11 @@ go func(){
 	resultsDone <- true
 }()
 
-opts := &ripsrc.RipOpts{}
-//opts.Logger = ..
-//opts.CommitFromIncl = ..
-err := ripsrc.New().Rip(ctx, filepath.Join(dir, "myrepo_dir"), results, opts)
+opts := &ripsrc.Opts{}
+opts.RepoDir = filepath.Join(dir, "myrepo_dir")
+opts.CheckpointsDir = ...
+rip := ripsrc.New(opts)
+err := rip.Code(ctx, results)
 if err != nil {
 	log.Fatal("error", err)
 }
