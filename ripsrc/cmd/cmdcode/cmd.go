@@ -126,7 +126,7 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 		ripOpts.NoStrictResume = true
 
 		ripper := ripsrc.New(ripOpts)
-		err := ripper.Blame(ctx, res)
+		err := ripper.Code(ctx, res)
 		<-done
 
 		if err != nil {

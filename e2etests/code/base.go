@@ -33,7 +33,7 @@ func (s *Test) Run(optsp *ripsrc.Opts) []ripsrc.BlameResult {
 		opts = *optsp
 	}
 	opts.RepoDir = dirs.RepoDir
-	res, err := ripsrc.New(opts).BlameSlice(context.Background())
+	res, err := ripsrc.New(opts).CodeSlice(context.Background())
 	if err != nil {
 		t.Fatal("Rip returned error", err)
 	}

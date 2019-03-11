@@ -52,7 +52,7 @@ func (s *Ripsrc) codeInfoFiles(blame process.Result) (res []BlameResult, _ error
 		if !ok {
 			s.opts.Logger.Debug("changed file was not found in stats log entry", "file", r.Filename, "commit", commit.SHA)
 			continue
-			panic(fmt.Errorf("Changed file was not found in stats log entry, file %v commit %v", r.Filename, commit.SHA))
+			//panic(fmt.Errorf("Changed file was not found in stats log entry, file %v commit %v", r.Filename, commit.SHA))
 		}
 
 		r.Status = f.Status

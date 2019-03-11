@@ -58,7 +58,7 @@ const (
 	GitFileCommitStatusRemoved = commitmeta.GitFileCommitStatusRemoved
 )
 
-func (s *Ripsrc) Blame(ctx context.Context, res chan BlameResult) error {
+func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 	defer close(res)
 
 	err := s.prepareGitExec(ctx)
@@ -113,7 +113,7 @@ func (s *Ripsrc) Blame(ctx context.Context, res chan BlameResult) error {
 	return nil
 }
 
-func (s *Ripsrc) BlameSlice(ctx context.Context) (res []BlameResult, _ error) {
+func (s *Ripsrc) CodeSlice(ctx context.Context) (res []BlameResult, _ error) {
 	resChan := make(chan BlameResult)
 	done := make(chan bool)
 	go func() {
@@ -122,7 +122,7 @@ func (s *Ripsrc) BlameSlice(ctx context.Context) (res []BlameResult, _ error) {
 		}
 		done <- true
 	}()
-	err := s.Blame(ctx, resChan)
+	err := s.Code(ctx, resChan)
 	<-done
 	return res, err
 }
