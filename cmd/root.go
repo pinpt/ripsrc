@@ -5,35 +5,56 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pinpt/ripsrc/ripsrc/ripcmd"
+	"github.com/pinpt/ripsrc/ripsrc/cmd/cmdbranches"
+	"github.com/pinpt/ripsrc/ripsrc/cmd/cmdcode"
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:  "ripsrc <dir>",
-	Args: cobra.ExactArgs(1),
+	Use: "ripsrc",
+}
+
+var codeCmd = &cobra.Command{
+	Use:   "code <dir>",
+	Short: "Extracts code information from repos in a directory",
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		opts := ripcmd.Opts{}
+		opts := cmdcode.Opts{}
 		opts.Dir = args[0]
 		opts.CommitFromIncl, _ = cmd.Flags().GetString("sha")
 		opts.Profile, _ = cmd.Flags().GetString("profile")
-		ripcmd.Run(ctx, os.Stdout, opts)
+		cmdcode.Run(ctx, os.Stdout, opts)
+	},
+}
+
+var branchesCmd = &cobra.Command{
+	Use:   "branches <dir>",
+	Short: "Extracts information about branches from repos in a directory",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		opts := cmdbranches.Opts{}
+		opts.Dir = args[0]
+		opts.Profile, _ = cmd.Flags().GetString("profile")
+		cmdbranches.Run(ctx, os.Stdout, opts)
 	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+
 	RegisterIncBlame()
 
-	//rootCmd.Flags().String("include", "", "include filter as a regular expression")
-	//rootCmd.Flags().String("exclude", "", "exclude filter as a regular expression")
-	rootCmd.Flags().String("sha", "", "start streaming from sha")
-	rootCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
-	//rootCmd.Flags().Bool("bares", false, "run dir containing bare repositories")
+	codeCmd.Flags().String("sha", "", "start streaming from sha")
+	codeCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
+	rootCmd.AddCommand(codeCmd)
+
+	branchesCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
+	rootCmd.AddCommand(branchesCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

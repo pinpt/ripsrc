@@ -23,12 +23,17 @@ func NewTest(t *testing.T, repoName string) *Test {
 	return s
 }
 
-func (s *Test) Run(opts *ripsrc.RipOpts) []ripsrc.BlameResult {
+func (s *Test) Run(optsp *ripsrc.Opts) []ripsrc.BlameResult {
 	t := s.t
 	dirs := testutil.UnzipTestRepo(s.repoName)
 	defer dirs.Remove()
 
-	res, err := ripsrc.New().RipSlice(context.Background(), dirs.RepoDir, opts)
+	opts := ripsrc.Opts{}
+	if optsp != nil {
+		opts = *optsp
+	}
+	opts.RepoDir = dirs.RepoDir
+	res, err := ripsrc.New(opts).CodeSlice(context.Background())
 	if err != nil {
 		t.Fatal("Rip returned error", err)
 	}

@@ -49,7 +49,7 @@ func (s *CheckpointReader) Read(dir string, expectedCommit string) (Repo, error)
 	start := time.Now()
 	s.logger.Info("starting reading checkpoint")
 	defer func() {
-		s.logger.Info("finished reading checkpoint", "dur", time.Since(start))
+		s.logger.Info("finished reading checkpoint", "duration", time.Since(start))
 	}()
 
 	repo := New()
