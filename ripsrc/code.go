@@ -58,7 +58,38 @@ const (
 	GitFileCommitStatusRemoved = commitmeta.GitFileCommitStatusRemoved
 )
 
+// Code returns code information using one record per file and commit
 func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
+	defer close(res)
+
+	res2 := make(chan CommitCode)
+	done := make(chan bool)
+
+	go func() {
+		for r := range res2 {
+			for f := range r.Files {
+				res <- f
+			}
+		}
+		done <- true
+	}()
+
+	err := s.CodeByCommit(ctx, res2)
+	<-done
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type CommitCode struct {
+	SHA   string
+	Files chan BlameResult
+}
+
+// CodeByCommit returns code information using one record per commit that includes records by file
+func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 	defer close(res)
 
 	err := s.prepareGitExec(ctx)
@@ -73,20 +104,26 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 
 	err = s.getCommitInfo(ctx)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	gitRes := make(chan process.Result)
 	done := make(chan bool)
 	go func() {
 		for r1 := range gitRes {
+			rc := CommitCode{}
+			rc.SHA = r1.Commit
+			rc.Files = make(chan BlameResult)
+
 			rs, err := s.codeInfoFiles(r1)
 			if err != nil {
 				panic(err)
 			}
+			res <- rc
 			for _, r := range rs {
-				res <- r
+				rc.Files <- r
 			}
+			close(rc.Files)
 		}
 		done <- true
 	}()
@@ -102,11 +139,11 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 	}
 	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)
+	<-done
+
 	if err != nil {
 		return err
 	}
-
-	<-done
 
 	s.GitProcessTimings = gitProcessor.Timing()
 

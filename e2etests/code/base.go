@@ -1,7 +1,6 @@
 package e2etests
 
 import (
-	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -23,8 +22,8 @@ func NewTest(t *testing.T, repoName string) *Test {
 	return s
 }
 
-func (s *Test) Run(optsp *ripsrc.Opts) []ripsrc.BlameResult {
-	t := s.t
+// cb callback to defer dirs.Remove()
+func (s *Test) Run(optsp *ripsrc.Opts, cb func(*ripsrc.Ripsrc)) {
 	dirs := testutil.UnzipTestRepo(s.repoName)
 	defer dirs.Remove()
 
@@ -33,11 +32,7 @@ func (s *Test) Run(optsp *ripsrc.Opts) []ripsrc.BlameResult {
 		opts = *optsp
 	}
 	opts.RepoDir = dirs.RepoDir
-	res, err := ripsrc.New(opts).CodeSlice(context.Background())
-	if err != nil {
-		t.Fatal("Rip returned error", err)
-	}
-	return res
+	cb(ripsrc.New(opts))
 }
 
 func assertResult(t *testing.T, want, got []ripsrc.BlameResult) {
