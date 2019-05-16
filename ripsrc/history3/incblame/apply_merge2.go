@@ -47,7 +47,10 @@ func ApplyMerge(parents []Blame, diffs []Diff, commit string, fileForDebug strin
 			line := cand[j].Lines[i]
 			// if commit is not the merge commit that means the line appeared from that parent use it in res, in case multiple sources, first will be used
 			if line.Commit != commit {
-				res.Lines[i].Commit = line.Commit
+				// create a copy to avoid mutating original, which leads to race in tests
+				lc := *res.Lines[i]
+				lc.Commit = line.Commit
+				res.Lines[i] = &lc
 				break
 			}
 		}
