@@ -1,6 +1,7 @@
 package e2etests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/pinpt/ripsrc/ripsrc"
@@ -8,7 +9,15 @@ import (
 
 func TestMergeBasic(t *testing.T) {
 	test := NewTest(t, "merge_basic")
-	got := test.Run(nil)
+
+	var got []ripsrc.BlameResult
+	test.Run(nil, func(rip *ripsrc.Ripsrc) {
+		var err error
+		got, err = rip.CodeSlice(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	u1n := "User1"
 	u1e := "user1@example.com"

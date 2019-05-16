@@ -1,14 +1,52 @@
 package e2etests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/pinpt/ripsrc/ripsrc"
 )
 
+// Test results for a basic repo for both CodeSlice and Code2 calls
 func TestBasic(t *testing.T) {
-	test := NewTest(t, "basic")
-	got := test.Run(nil)
+	var got []ripsrc.BlameResult
+
+	type commit struct {
+		SHA   string
+		Files []ripsrc.BlameResult
+	}
+	var byCommit []commit
+
+	NewTest(t, "basic").Run(nil, func(rip *ripsrc.Ripsrc) {
+		{
+			var err error
+			got, err = rip.CodeSlice(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		{
+			ch := make(chan ripsrc.CommitCode)
+			done := make(chan bool)
+			go func() {
+				for c := range ch {
+					c2 := commit{}
+					c2.SHA = c.SHA
+					for f := range c.Files {
+						c2.Files = append(c2.Files, f)
+					}
+					byCommit = append(byCommit, c2)
+				}
+				done <- true
+			}()
+			defer func() { <-done }()
+			err := rip.CodeByCommit(context.Background(), ch)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 
 	u1n := "User1"
 	u1e := "user1@example.com"
@@ -133,4 +171,19 @@ func TestBasic(t *testing.T) {
 	}
 
 	assertResult(t, want, got)
+
+	if len(byCommit) != 2 {
+		t.Fatal("expecting 2 commits")
+	}
+
+	if byCommit[0].SHA != commit1.SHA {
+		t.Fatal("invalid sha")
+	}
+
+	if len(byCommit[0].Files) != 1 {
+		t.Fatal("invalid files len")
+	}
+
+	assertBlame(t, byCommit[0].Files[0], want[0])
+
 }

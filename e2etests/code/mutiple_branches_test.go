@@ -1,6 +1,7 @@
 package e2etests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/pinpt/ripsrc/ripsrc"
@@ -9,7 +10,15 @@ import (
 
 func TestMultipleBranches1(t *testing.T) {
 	test := NewTest(t, "multiple_branches")
-	got := test.Run(&ripsrc.Opts{AllBranches: true})
+
+	var got []ripsrc.BlameResult
+	test.Run(&ripsrc.Opts{AllBranches: true}, func(rip *ripsrc.Ripsrc) {
+		var err error
+		got, err = rip.CodeSlice(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	if len(got) != 3 {
 		t.Fatal("expecting changes for 3 commits")
@@ -28,7 +37,15 @@ func TestMultipleBranches1(t *testing.T) {
 
 func TestMultipleBranchesDisabled(t *testing.T) {
 	test := NewTest(t, "multiple_branches_disabled")
-	got := test.Run(nil)
+
+	var got []ripsrc.BlameResult
+	test.Run(nil, func(rip *ripsrc.Ripsrc) {
+		var err error
+		got, err = rip.CodeSlice(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	if len(got) != 1 {
 		t.Fatalf("expecting changes for 1 commits, got\n%#+v", got)
