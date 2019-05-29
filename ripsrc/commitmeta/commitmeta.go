@@ -365,7 +365,7 @@ func (p *parser) parse(line string) (bool, error) {
 				if err != nil {
 					return false, fmt.Errorf("error parsing commit %s in %s. %v", p.commit.SHA, p.dir, err)
 				}
-				p.commit.Date = t.UTC()
+				p.commit.Date = t
 				return true, nil
 			}
 			if bytes.HasPrefix(buf, authorPrefix) {
