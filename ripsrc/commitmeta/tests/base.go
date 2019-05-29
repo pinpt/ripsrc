@@ -69,7 +69,7 @@ func parseGitDate(s string) time.Time {
 	if err != nil {
 		panic(err)
 	}
-	return r.UTC()
+	return r
 }
 
 func strp(s string) *string {

@@ -234,7 +234,7 @@ func parseDate(d string) (time.Time, error) {
 	if err != nil {
 		return time.Now(), fmt.Errorf("error parsing commit date `%v`. %v", d, err)
 	}
-	return t.UTC(), nil
+	return t, nil
 }
 
 func parseEmail(email string) string {
