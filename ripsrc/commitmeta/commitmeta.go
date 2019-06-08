@@ -234,7 +234,7 @@ func parseDate(d string) (time.Time, error) {
 	if err != nil {
 		return time.Now(), fmt.Errorf("error parsing commit date `%v`. %v", d, err)
 	}
-	return t.UTC(), nil
+	return t, nil
 }
 
 func parseEmail(email string) string {
@@ -365,7 +365,7 @@ func (p *parser) parse(line string) (bool, error) {
 				if err != nil {
 					return false, fmt.Errorf("error parsing commit %s in %s. %v", p.commit.SHA, p.dir, err)
 				}
-				p.commit.Date = t.UTC()
+				p.commit.Date = t
 				return true, nil
 			}
 			if bytes.HasPrefix(buf, authorPrefix) {

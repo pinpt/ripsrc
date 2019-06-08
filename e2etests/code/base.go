@@ -207,7 +207,7 @@ func parseGitDate(s string) time.Time {
 	if err != nil {
 		panic(err)
 	}
-	return r.UTC()
+	return r
 }
 
 func line(name string, email string, date time.Time, comment, code, blank bool) *ripsrc.BlameLine {
