@@ -41,6 +41,7 @@ type BlameLine struct {
 	Comment bool
 	Code    bool
 	Blank   bool
+	SHA     string
 }
 
 // License holds details about detected license

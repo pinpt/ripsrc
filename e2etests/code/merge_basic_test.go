@@ -116,10 +116,10 @@ func TestMergeBasic(t *testing.T) {
 					func main(){
 					}
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, false, true, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
 			},
 			Size:               29,
 			Loc:                4,
@@ -144,11 +144,11 @@ func TestMergeBasic(t *testing.T) {
 					// A
 					}
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c2d, true, false, false),
-				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, false, true, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c2d, true, false, false, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
 			},
 			Size:               34,
 			Loc:                5,
@@ -173,11 +173,11 @@ func TestMergeBasic(t *testing.T) {
 					// M
 					}
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c3d, true, false, false),
-				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, false, true, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c3d, true, false, false, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
 			},
 			Size:               34,
 			Loc:                5,
@@ -203,12 +203,12 @@ func TestMergeBasic(t *testing.T) {
 					// M
 					}
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c3d, true, false, false),
-				line(u1n, u1e, c2d, true, false, false),
-				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, false, true, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c3d, true, false, false, ""),
+				line(u1n, u1e, c2d, true, false, false, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
 			},
 			Size:               39,
 			Loc:                6,

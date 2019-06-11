@@ -126,6 +126,7 @@ func (s *Ripsrc) codeInfoFile(filePath string, bl *incblame.Blame, fileBytes []b
 		line2.Email = meta.AuthorEmail
 		line2.Date = meta.Date
 		line2.line = line.Line
+		line2.SHA = line.Commit
 		lines = append(lines, line2)
 	}
 

@@ -49,52 +49,52 @@ func assertResult(t *testing.T, want, got []ripsrc.BlameResult) {
 }
 
 // needed because BlameResult has private fields
-func assertBlame(t *testing.T, b1, b2 ripsrc.BlameResult) bool {
-	if !assertCommitEqual(t, b1.Commit, b2.Commit) {
-		t.Errorf("blame commit does not match, wanted\n%#+v\ngot\n%#+v", b1.Commit, b2.Commit)
+func assertBlame(t *testing.T, want, got ripsrc.BlameResult) bool {
+	if !assertCommitEqual(t, want.Commit, got.Commit) {
+		t.Errorf("blame commit does not match, wanted\n%#+v\ngot\n%#+v", want.Commit, got.Commit)
 		return false
 	}
-	if b1.Language != b2.Language {
+	if want.Language != got.Language {
 		return false
 	}
-	if b1.Filename != b2.Filename {
+	if want.Filename != got.Filename {
 		return false
 	}
-	if !blameLinesEqual(t, b1.Lines, b2.Lines) {
+	if !blameLinesEqual(t, want.Lines, got.Lines) {
 		t.Error("blame lines do not match, got")
-		for _, l := range b2.Lines {
+		for _, l := range got.Lines {
 			t.Logf("%+v", l)
 		}
 		return false
 	}
-	if b1.Size != b2.Size {
+	if want.Size != got.Size {
 		return false
 	}
-	if b1.Loc != b2.Loc {
+	if want.Loc != got.Loc {
 		return false
 	}
-	if b1.Sloc != b2.Sloc {
+	if want.Sloc != got.Sloc {
 		return false
 	}
-	if b1.Comments != b2.Comments {
+	if want.Comments != got.Comments {
 		return false
 	}
-	if b1.Blanks != b2.Blanks {
+	if want.Blanks != got.Blanks {
 		return false
 	}
-	if b1.Complexity != b2.Complexity {
+	if want.Complexity != got.Complexity {
 		return false
 	}
-	if b1.WeightedComplexity != b2.WeightedComplexity {
+	if want.WeightedComplexity != got.WeightedComplexity {
 		return false
 	}
-	if b1.Skipped != b2.Skipped {
+	if want.Skipped != got.Skipped {
 		return false
 	}
-	if b1.License != b2.License {
+	if want.License != got.License {
 		return false
 	}
-	if b1.Status != b2.Status {
+	if want.Status != got.Status {
 		return false
 	}
 	return true
@@ -133,6 +133,11 @@ func blameLineEqual(t *testing.T, l1, l2 *ripsrc.BlameLine) bool {
 	}
 	if l1.Blank != l2.Blank {
 		return false
+	}
+	if l1.SHA != "" {
+		if l1.SHA != l2.SHA {
+			return false
+		}
 	}
 	return true
 }
@@ -210,14 +215,16 @@ func parseGitDate(s string) time.Time {
 	return r
 }
 
-func line(name string, email string, date time.Time, comment, code, blank bool) *ripsrc.BlameLine {
+func line(name string, email string, date time.Time, comment, code, blank bool, sha string) *ripsrc.BlameLine {
 	return &ripsrc.BlameLine{
 		Name:    name,
 		Email:   email,
 		Date:    date,
 		Comment: comment,
 		Code:    code,
-		Blank:   blank}
+		Blank:   blank,
+		SHA:     sha,
+	}
 }
 
 func filep(f ripsrc.CommitFile) *ripsrc.CommitFile {
