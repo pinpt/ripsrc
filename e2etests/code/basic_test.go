@@ -69,8 +69,10 @@ func TestBasic(t *testing.T) {
 		Deletions: 3,
 	}
 
+	c1sha := "b4dadc54e312e976694161c2ac59ab76feb0c40d"
+
 	commit1 := ripsrc.Commit{
-		SHA:            "b4dadc54e312e976694161c2ac59ab76feb0c40d",
+		SHA:            c1sha,
 		AuthorName:     u1n,
 		AuthorEmail:    u1e,
 		CommitterName:  u1n,
@@ -86,8 +88,10 @@ func TestBasic(t *testing.T) {
 		Ordinal: 1,
 	}
 
+	c2sha := "69ba50fff990c169f80de96674919033a0a9b66d"
+
 	commit2 := ripsrc.Commit{
-		SHA:            "69ba50fff990c169f80de96674919033a0a9b66d",
+		SHA:            c2sha,
 		AuthorName:     u2n,
 		AuthorEmail:    u2e,
 		CommitterName:  u2n,
@@ -118,14 +122,14 @@ func TestBasic(t *testing.T) {
 				   	cmd.Execute()
 				   }
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, false, true, c1sha),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, false, true, c1sha),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, false, true, c1sha),
 			},
 			Size:               84,
 			Loc:                8,
@@ -150,12 +154,12 @@ func TestBasic(t *testing.T) {
 					  // do nothing
 					}
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u2n, u2e, c2d, true, false, false),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, false, true, c1sha),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u2n, u2e, c2d, true, false, false, c2sha),
+				line(u1n, u1e, c1d, false, true, false, c1sha),
+				line(u1n, u1e, c1d, false, false, true, c1sha),
 			},
 			Size:               47,
 			Loc:                6,
@@ -184,6 +188,6 @@ func TestBasic(t *testing.T) {
 		t.Fatal("invalid files len")
 	}
 
-	assertBlame(t, byCommit[0].Files[0], want[0])
+	assertBlame(t, want[0], byCommit[0].Files[0])
 
 }

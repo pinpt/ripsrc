@@ -78,10 +78,10 @@ func TestDeletedFiles(t *testing.T) {
 				   func main() {
 				   }
 				*/
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, false, true),
-				line(u1n, u1e, c1d, false, true, false),
-				line(u1n, u1e, c1d, false, true, false),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, false, true, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
+				line(u1n, u1e, c1d, false, true, false, ""),
 			},
 			Size:               29,
 			Loc:                4,
