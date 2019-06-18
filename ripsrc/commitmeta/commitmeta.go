@@ -193,8 +193,6 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
 	}
 
-	// fmt.Println("ARGS", args)
-
 	return gitexec.ExecPiped(context.Background(), s.gitCommand, s.repoDir, args)
 }
 
@@ -317,7 +315,6 @@ func (p *parser) parse(line string) (bool, error) {
 	if line == "" {
 		return true, nil
 	}
-	fmt.Println("line", line)
 	buf := []byte(line)
 	for {
 		switch p.state {
@@ -389,7 +386,6 @@ func (p *parser) parse(line string) (bool, error) {
 			}
 			if bytes.HasPrefix(buf, signedEmailPrefix) {
 				signedCommitLine := string(buf[len(signedEmailPrefix):])
-				fmt.Println("SIGNEDLINE", string(buf))
 				if signedCommitLine != "" {
 					p.commit.Signed = true
 				}

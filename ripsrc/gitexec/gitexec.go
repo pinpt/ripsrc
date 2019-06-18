@@ -147,7 +147,6 @@ func Exec(ctx context.Context, gitCommand string, repoDir string, args []string)
 }
 
 func ExecIntoWriter(ctx context.Context, wr io.Writer, gitCommand string, repoDir string, args []string) error {
-	fmt.Println("ARGS", args)
 	c := exec.CommandContext(ctx, gitCommand, args...)
 	c.Dir = repoDir
 	c.Stderr = os.Stderr
