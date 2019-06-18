@@ -87,6 +87,7 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 type CommitCode struct {
 	SHA   string
 	Files chan BlameResult
+	Date  string
 }
 
 // CodeByCommit returns code information using one record per commit that includes records by file
@@ -115,6 +116,7 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 			rc := CommitCode{}
 			rc.SHA = r1.Commit
 			rc.Files = make(chan BlameResult)
+			// rc.Date =
 
 			rs, err := s.codeInfoFiles(r1)
 			if err != nil {
