@@ -182,7 +182,7 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--raw",
 		"--reverse",
 		"--numstat",
-		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Email: %GS%n!Date: %aI%n!Message: %s%n",
+		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Key: %GK%n!Date: %aI%n!Message: %s%n",
 	}
 
 	if s.opts.AllBranches {
@@ -202,7 +202,7 @@ var (
 	authorNamePrefix    = []byte("!AName: ")
 	committerPrefix     = []byte("!Committer: ")
 	committerNamePrefix = []byte("!CName: ")
-	signedEmailPrefix   = []byte("!Signed-Email: ")
+	signedEmailPrefix   = []byte("!Signed-Key: ")
 	messagePrefix       = []byte("!Message: ")
 	parentsPrefix       = []byte("!Parents: ")
 	emailRegex          = regexp.MustCompile("<(.*)>")
@@ -388,11 +388,6 @@ func (p *parser) parse(line string) (bool, error) {
 				signedCommitLine := string(buf[len(signedEmailPrefix):])
 				if signedCommitLine != "" {
 					p.commit.Signed = true
-					signedEmail := parseEmail(signedCommitLine)
-					if signedEmail != "" {
-						// if signed, mark it as such as use this as the preferred email
-						p.commit.AuthorEmail = signedEmail
-					}
 				}
 				return true, nil
 			}
