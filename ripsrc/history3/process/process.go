@@ -160,7 +160,21 @@ func (s *Process) Run(resChan chan Result) error {
 		}
 	}()
 
+	skipping := false
+	var startSkip time.Time
+	if s.opts.CommitFromIncl != "" {
+		s.opts.Logger.Debug("Starting skipping git log (with patches)")
+		skipping = true
+		startSkip = time.Now()
+	}
 	for commit := range commits {
+		if s.opts.CommitFromIncl == commit.Hash {
+			s.opts.Logger.Debug("Finished skipping git log (with patches)", "dur", time.Since(startSkip))
+			skipping = false
+		}
+		if skipping {
+			continue
+		}
 		commit.Parents = s.graph.Parents[commit.Hash]
 		s.processCommit(resChan, commit)
 	}
@@ -764,9 +778,9 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		args = append(args, "--all")
 	}
 
-	if s.opts.CommitFromIncl != "" {
-		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
-	}
+	//if s.opts.CommitFromIncl != "" {
+	//	args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+	//}
 
 	ctx := context.Background()
 	//if s.opts.DisableCache {
