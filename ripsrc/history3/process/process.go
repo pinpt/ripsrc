@@ -97,14 +97,23 @@ func New(opts Opts) *Process {
 		s.checkpointsDir = filepath.Join(opts.RepoDir, "pp-git-cache")
 	}
 
-	if opts.CommitFromIncl == "" {
+	return s
+}
+
+func (s *Process) Timing() Timing {
+	return *s.timing
+}
+
+func (s *Process) initCheckpoints() error {
+
+	if s.opts.CommitFromIncl == "" {
 		s.repo = repo.New()
 	} else {
 		expectedCommit := ""
-		if opts.NoStrictResume {
+		if s.opts.NoStrictResume {
 			// validation disabled
 		} else {
-			expectedCommit = opts.CommitFromIncl
+			expectedCommit = s.opts.CommitFromIncl
 		}
 		reader := repo.NewCheckpointReader(s.opts.Logger)
 		r, err := reader.Read(s.checkpointsDir, expectedCommit)
@@ -115,12 +124,7 @@ func New(opts Opts) *Process {
 	}
 
 	s.unloader = repo.NewUnloader(s.repo)
-
-	return s
-}
-
-func (s *Process) Timing() Timing {
-	return *s.timing
+	return nil
 }
 
 func (s *Process) Run(resChan chan Result) error {
@@ -168,6 +172,13 @@ func (s *Process) Run(resChan chan Result) error {
 
 	i := 0
 	for commit := range commits {
+		if i == 0 {
+			err := s.initCheckpoints()
+			if err != nil {
+				<-done
+				return err
+			}
+		}
 		i++
 		commit.Parents = s.graph.Parents[commit.Hash]
 		s.processCommit(resChan, commit)
@@ -187,14 +198,13 @@ func (s *Process) Run(resChan chan Result) error {
 	writer := repo.NewCheckpointWriter(s.opts.Logger)
 	err = writer.Write(s.repo, s.checkpointsDir, s.lastProcessedCommitHash)
 	if err != nil {
+		<-done
 		return err
 	}
 
-	<-done
-
 	//fmt.Println("max len of stored tree", s.maxLenOfStoredTree)
 	//fmt.Println("repo len", len(s.repo))
-
+	<-done
 	return nil
 }
 
