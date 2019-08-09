@@ -214,10 +214,9 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		args = append(args, "--all")
 	}
 
-	//panic("todo")
-	//if s.opts.CommitFromIncl != "" {
-	//	args = append(args, s.opts.CommitFromIncl+"^..HEAD")
-	//}
+	if s.opts.CommitFromIncl != "" {
+		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+	}
 
 	return gitexec.ExecPiped(context.Background(), s.gitCommand, s.repoDir, args)
 }

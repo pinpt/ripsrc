@@ -778,9 +778,9 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		args = append(args, "--all")
 	}
 
-	//if s.opts.CommitFromIncl != "" {
-	//	args = append(args, s.opts.CommitFromIncl+"^..HEAD")
-	//}
+	if s.opts.CommitFromIncl != "" {
+		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+	}
 
 	ctx := context.Background()
 	//if s.opts.DisableCache {
