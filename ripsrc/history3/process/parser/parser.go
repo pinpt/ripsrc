@@ -81,7 +81,10 @@ func (s *Parser) Run(res chan Commit) error {
 		return err
 	}
 
-	s.endCommit()
+	// handle empty log output
+	if s.state != stNotStarted {
+		s.endCommit()
+	}
 
 	return nil
 }

@@ -163,13 +163,22 @@ func (s *Process) Run(resChan chan Result) error {
 		}
 	}()
 
+	i := 0
 	for commit := range commits {
+		i++
 		commit.Parents = s.graph.Parents[commit.Hash]
 		s.processCommit(resChan, commit)
 	}
 
 	if len(s.mergeParts) > 0 {
 		s.processGotMergeParts(resChan)
+	}
+
+	if i == 0 {
+		// there were no items in log, happens when last processed commit was in a branch that is no longer recent and is skipped in incremental
+		// no need to write checkpoints
+		<-done
+		return nil
 	}
 
 	writer := repo.NewCheckpointWriter(s.opts.Logger)
@@ -741,7 +750,7 @@ func (s *Process) RunGetAll() (_ []Result, err error) {
 }
 
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
-	// empty file at tem location to set an empty attributesFile
+	// empty file at temp location to set an empty attributesFile
 	f, err := ioutil.TempFile("", "ripsrc")
 	if err != nil {
 		return nil, err
