@@ -56,14 +56,20 @@ type Opts struct {
 	// NoStrictResume forces incremental processing to avoid checking that it continues from the same commit in previously finished on. Since incrementals save a large number of previous commits, it works even starting on another commit.
 	NoStrictResume bool
 
-	// CommitFromIncl is commit from which processing should start. Inclusive.
-	// WIP. Does not work correctly at the moment.
+	// CommitFromIncl process starting from this commit (including this commit).
 	CommitFromIncl string
+
+	// CommitFromMakeNonIncl by default we start from passed commit and include it. Set CommitFromMakeNonIncl to true to avoid returning it, and skipping reading/writing checkpoint.
+	CommitFromMakeNonIncl bool
+
 	// DisableCache is unused.
 	DisableCache bool
 
 	// AllBranches set to true to process all branches. If false, processes commits starting from HEAD only.
 	AllBranches bool
+
+	// WantedBranchRefs filter branches.  When CommitFromIncl and AllBranches is set this is required.
+	WantedBranchRefs []string
 
 	// ParentsGraph is optional graph of commits. Pass to reuse, if not passed will be created.
 	ParentsGraph *parentsgraph.Graph
@@ -91,14 +97,23 @@ func New(opts Opts) *Process {
 		s.checkpointsDir = filepath.Join(opts.RepoDir, "pp-git-cache")
 	}
 
-	if opts.CommitFromIncl == "" {
+	return s
+}
+
+func (s *Process) Timing() Timing {
+	return *s.timing
+}
+
+func (s *Process) initCheckpoints() error {
+
+	if s.opts.CommitFromIncl == "" {
 		s.repo = repo.New()
 	} else {
 		expectedCommit := ""
-		if opts.NoStrictResume {
+		if s.opts.NoStrictResume {
 			// validation disabled
 		} else {
-			expectedCommit = opts.CommitFromIncl
+			expectedCommit = s.opts.CommitFromIncl
 		}
 		reader := repo.NewCheckpointReader(s.opts.Logger)
 		r, err := reader.Read(s.checkpointsDir, expectedCommit)
@@ -109,12 +124,7 @@ func New(opts Opts) *Process {
 	}
 
 	s.unloader = repo.NewUnloader(s.repo)
-
-	return s
-}
-
-func (s *Process) Timing() Timing {
-	return *s.timing
+	return nil
 }
 
 func (s *Process) Run(resChan chan Result) error {
@@ -160,7 +170,16 @@ func (s *Process) Run(resChan chan Result) error {
 		}
 	}()
 
+	i := 0
 	for commit := range commits {
+		if i == 0 {
+			err := s.initCheckpoints()
+			if err != nil {
+				<-done
+				return err
+			}
+		}
+		i++
 		commit.Parents = s.graph.Parents[commit.Hash]
 		s.processCommit(resChan, commit)
 	}
@@ -169,17 +188,23 @@ func (s *Process) Run(resChan chan Result) error {
 		s.processGotMergeParts(resChan)
 	}
 
+	if i == 0 {
+		// there were no items in log, happens when last processed commit was in a branch that is no longer recent and is skipped in incremental
+		// no need to write checkpoints
+		<-done
+		return nil
+	}
+
 	writer := repo.NewCheckpointWriter(s.opts.Logger)
 	err = writer.Write(s.repo, s.checkpointsDir, s.lastProcessedCommitHash)
 	if err != nil {
+		<-done
 		return err
 	}
 
-	<-done
-
 	//fmt.Println("max len of stored tree", s.maxLenOfStoredTree)
 	//fmt.Println("repo len", len(s.repo))
-
+	<-done
 	return nil
 }
 
@@ -738,7 +763,7 @@ func (s *Process) RunGetAll() (_ []Result, err error) {
 }
 
 func (s *Process) gitLogPatches() (io.ReadCloser, error) {
-	// empty file at tem location to set an empty attributesFile
+	// empty file at temp location to set an empty attributesFile
 	f, err := ioutil.TempFile("", "ripsrc")
 	if err != nil {
 		return nil, err
@@ -760,12 +785,23 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		"--pretty=short",
 	}
 
-	if s.opts.AllBranches {
-		args = append(args, "--all")
-	}
-
 	if s.opts.CommitFromIncl != "" {
-		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+		if s.opts.AllBranches {
+			for _, c := range s.opts.WantedBranchRefs {
+				args = append(args, c)
+			}
+		}
+		pf := ""
+		if s.opts.CommitFromMakeNonIncl {
+			pf = "..HEAD"
+		} else {
+			pf = "^..HEAD"
+		}
+		args = append(args, s.opts.CommitFromIncl+pf)
+	} else {
+		if s.opts.AllBranches {
+			args = append(args, "--all")
+		}
 	}
 
 	ctx := context.Background()

@@ -6,10 +6,12 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
 )
 
-func (s *Ripsrc) getCommitInfo(ctx context.Context) error {
+func (s *Ripsrc) getCommitInfo(ctx context.Context, wantedBranchRefs []string) error {
 	copts := commitmeta.Opts{}
 	copts.CommitFromIncl = s.opts.CommitFromIncl
+	copts.CommitFromMakeNonIncl = s.opts.CommitFromMakeNonIncl
 	copts.AllBranches = s.opts.AllBranches
+	copts.WantedBranchRefs = wantedBranchRefs
 	cm := commitmeta.New(s.opts.RepoDir, copts)
 	res, err := cm.RunMap()
 	if err != nil {

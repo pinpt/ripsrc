@@ -18,7 +18,14 @@ import (
 )
 
 type Opts struct {
+	// CommitFromIncl process starting from this commit (including this commit).
 	CommitFromIncl string
+
+	// CommitFromMakeNonIncl by default we start from passed commit and include it. Set CommitFromMakeNonIncl to true to avoid returning it, and skipping reading/writing checkpoint.
+	CommitFromMakeNonIncl bool
+
+	// WantedBranchRefs filter branches.  When CommitFromIncl and AllBranches is set this is required.
+	WantedBranchRefs []string
 
 	// AllBranches set to true to process all branches. If false, processes commits reachable from HEAD only.
 	AllBranches bool
@@ -185,12 +192,23 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Key: %GK%n!Date: %aI%n!Message: %s%n",
 	}
 
-	if s.opts.AllBranches {
-		args = append(args, "--all")
-	}
-
 	if s.opts.CommitFromIncl != "" {
-		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+		if s.opts.AllBranches {
+			for _, c := range s.opts.WantedBranchRefs {
+				args = append(args, c)
+			}
+		}
+		pf := ""
+		if s.opts.CommitFromMakeNonIncl {
+			pf = "..HEAD"
+		} else {
+			pf = "^..HEAD"
+		}
+		args = append(args, s.opts.CommitFromIncl+pf)
+	} else {
+		if s.opts.AllBranches {
+			args = append(args, "--all")
+		}
 	}
 
 	return gitexec.ExecPiped(context.Background(), s.gitCommand, s.repoDir, args)
