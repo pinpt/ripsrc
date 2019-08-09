@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
-
 	"github.com/pinpt/ripsrc/ripsrc/gitexec"
 )
 
@@ -24,9 +22,6 @@ type Opts struct {
 
 	// AllBranches set to true to process all branches. If false, processes commits reachable from HEAD only.
 	AllBranches bool
-
-	// Logger object for info and debug.
-	Logger logger.Logger
 }
 
 type Processor struct {
@@ -152,28 +147,8 @@ func (s *Processor) Run(res chan Commit) error {
 	parser.filejobs = fjChan
 
 	scanner := bufio.NewScanner(r)
-	skipping := false
-
-	var startSkip time.Time
-	if s.opts.CommitFromIncl != "" {
-		s.opts.Logger.Debug("Starting skipping git log (without patches)")
-		skipping = true
-		startSkip = time.Now()
-	}
 	for scanner.Scan() {
-		var data string
-		if skipping {
-			b := scanner.Bytes()
-			wantPre := string(commitPrefix) + s.opts.CommitFromIncl
-			if !bytes.HasPrefix(b, []byte(wantPre)) {
-				continue
-			}
-			data = string(b)
-			s.opts.Logger.Debug("Finished skipping git log (without patches)", "dur", time.Since(startSkip))
-		} else {
-			data = scanner.Text()
-		}
-		ok, err := parser.parse(data)
+		ok, err := parser.parse(scanner.Text())
 		if err != nil {
 			return fmt.Errorf("error processing commit from %v. %v", s.repoDir, err)
 		}
