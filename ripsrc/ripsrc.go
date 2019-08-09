@@ -3,6 +3,7 @@ package ripsrc
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
 
@@ -31,6 +32,10 @@ type Opts struct {
 
 	// CommitFromIncl process starting from this commit (including this commit).
 	CommitFromIncl string
+
+	// IncrementalIgnoreBranchesOlderThan provides a way to ignore old branches in incremental processing.
+	// Default is time.Now() - 90 * day
+	IncrementalIgnoreBranchesOlderThan time.Time
 
 	// AllBranches set to true to process all branches. If false, processes HEAD only.
 	AllBranches bool

@@ -57,13 +57,16 @@ type Opts struct {
 	NoStrictResume bool
 
 	// CommitFromIncl is commit from which processing should start. Inclusive.
-	// WIP. Does not work correctly at the moment.
 	CommitFromIncl string
+
 	// DisableCache is unused.
 	DisableCache bool
 
 	// AllBranches set to true to process all branches. If false, processes commits starting from HEAD only.
 	AllBranches bool
+
+	// WantedBranchRefs filter branches.  When CommitFromIncl and AllBranches is set this is required.
+	WantedBranchRefs []string
 
 	// ParentsGraph is optional graph of commits. Pass to reuse, if not passed will be created.
 	ParentsGraph *parentsgraph.Graph
@@ -760,12 +763,17 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 		"--pretty=short",
 	}
 
-	if s.opts.AllBranches {
-		args = append(args, "--all")
-	}
-
 	if s.opts.CommitFromIncl != "" {
+		if s.opts.AllBranches {
+			for _, c := range s.opts.WantedBranchRefs {
+				args = append(args, c)
+			}
+		}
 		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+	} else {
+		if s.opts.AllBranches {
+			args = append(args, "--all")
+		}
 	}
 
 	ctx := context.Background()

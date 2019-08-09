@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/pinpt/ripsrc/ripsrc/branchmeta"
+
 	"github.com/pinpt/ripsrc/ripsrc/commitmeta"
 	"github.com/pinpt/ripsrc/ripsrc/fileinfo"
 	"github.com/pinpt/ripsrc/ripsrc/history3/process"
@@ -103,7 +105,36 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 		return err
 	}
 
-	err = s.getCommitInfo(ctx)
+	var wantedBranchRefs []string
+	var wantedBranchNames []string
+
+	if s.opts.CommitFromIncl != "" && s.opts.AllBranches {
+		allBranches, err := branchmeta.Get(ctx, branchmeta.Opts{
+			Logger:    s.opts.Logger,
+			RepoDir:   s.opts.RepoDir,
+			UseOrigin: s.opts.BranchesUseOrigin,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		deadline := s.opts.IncrementalIgnoreBranchesOlderThan
+		if deadline.IsZero() {
+			deadline = time.Now().Add(3 * 30 * 24 * time.Hour)
+		}
+		for _, b := range allBranches {
+			if b.CommitCommitterTime.After(deadline) {
+				wantedBranchRefs = append(wantedBranchRefs, b.Commit)
+				wantedBranchNames = append(wantedBranchNames, b.Name)
+			}
+		}
+	}
+	if len(wantedBranchRefs) != 0 {
+		s.opts.Logger.Debug("processing additional branches", "branches", wantedBranchNames)
+	}
+
+	err = s.getCommitInfo(ctx, wantedBranchRefs)
 	if err != nil {
 		return err
 	}
@@ -130,13 +161,14 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 	}()
 
 	processOpts := process.Opts{
-		Logger:         s.opts.Logger,
-		RepoDir:        s.opts.RepoDir,
-		CheckpointsDir: s.opts.CheckpointsDir,
-		NoStrictResume: s.opts.NoStrictResume,
-		CommitFromIncl: s.opts.CommitFromIncl,
-		AllBranches:    s.opts.AllBranches,
-		ParentsGraph:   s.commitGraph,
+		Logger:           s.opts.Logger,
+		RepoDir:          s.opts.RepoDir,
+		CheckpointsDir:   s.opts.CheckpointsDir,
+		NoStrictResume:   s.opts.NoStrictResume,
+		CommitFromIncl:   s.opts.CommitFromIncl,
+		AllBranches:      s.opts.AllBranches,
+		ParentsGraph:     s.commitGraph,
+		WantedBranchRefs: wantedBranchRefs,
 	}
 	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)

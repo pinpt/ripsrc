@@ -20,6 +20,9 @@ import (
 type Opts struct {
 	CommitFromIncl string
 
+	// WantedBranchRefs filter branches.  When CommitFromIncl and AllBranches is set this is required.
+	WantedBranchRefs []string
+
 	// AllBranches set to true to process all branches. If false, processes commits reachable from HEAD only.
 	AllBranches bool
 }
@@ -185,12 +188,17 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Key: %GK%n!Date: %aI%n!Message: %s%n",
 	}
 
-	if s.opts.AllBranches {
-		args = append(args, "--all")
-	}
-
 	if s.opts.CommitFromIncl != "" {
+		if s.opts.AllBranches {
+			for _, c := range s.opts.WantedBranchRefs {
+				args = append(args, c)
+			}
+		}
 		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+	} else {
+		if s.opts.AllBranches {
+			args = append(args, "--all")
+		}
 	}
 
 	return gitexec.ExecPiped(context.Background(), s.gitCommand, s.repoDir, args)
