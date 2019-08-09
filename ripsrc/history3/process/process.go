@@ -56,8 +56,11 @@ type Opts struct {
 	// NoStrictResume forces incremental processing to avoid checking that it continues from the same commit in previously finished on. Since incrementals save a large number of previous commits, it works even starting on another commit.
 	NoStrictResume bool
 
-	// CommitFromIncl is commit from which processing should start. Inclusive.
+	// CommitFromIncl process starting from this commit (including this commit).
 	CommitFromIncl string
+
+	// CommitFromMakeNonIncl by default we start from passed commit and include it. Set CommitFromMakeNonIncl to true to avoid returning it, and skipping reading/writing checkpoint.
+	CommitFromMakeNonIncl bool
 
 	// DisableCache is unused.
 	DisableCache bool
@@ -778,7 +781,13 @@ func (s *Process) gitLogPatches() (io.ReadCloser, error) {
 				args = append(args, c)
 			}
 		}
-		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+		pf := ""
+		if s.opts.CommitFromMakeNonIncl {
+			pf = "..HEAD"
+		} else {
+			pf = "^..HEAD"
+		}
+		args = append(args, s.opts.CommitFromIncl+pf)
 	} else {
 		if s.opts.AllBranches {
 			args = append(args, "--all")

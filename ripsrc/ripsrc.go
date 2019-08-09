@@ -33,6 +33,9 @@ type Opts struct {
 	// CommitFromIncl process starting from this commit (including this commit).
 	CommitFromIncl string
 
+	// CommitFromMakeNonIncl by default we start from passed commit and include it. Set CommitFromMakeNonIncl to true to avoid returning it, and skipping reading/writing checkpoint.
+	CommitFromMakeNonIncl bool
+
 	// IncrementalIgnoreBranchesOlderThan provides a way to ignore old branches in incremental processing.
 	// Default is time.Now() - 90 * day
 	IncrementalIgnoreBranchesOlderThan time.Time

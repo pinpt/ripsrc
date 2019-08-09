@@ -9,6 +9,7 @@ import (
 func (s *Ripsrc) getCommitInfo(ctx context.Context, wantedBranchRefs []string) error {
 	copts := commitmeta.Opts{}
 	copts.CommitFromIncl = s.opts.CommitFromIncl
+	copts.CommitFromMakeNonIncl = s.opts.CommitFromMakeNonIncl
 	copts.AllBranches = s.opts.AllBranches
 	copts.WantedBranchRefs = wantedBranchRefs
 	cm := commitmeta.New(s.opts.RepoDir, copts)

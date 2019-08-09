@@ -18,7 +18,11 @@ import (
 )
 
 type Opts struct {
+	// CommitFromIncl process starting from this commit (including this commit).
 	CommitFromIncl string
+
+	// CommitFromMakeNonIncl by default we start from passed commit and include it. Set CommitFromMakeNonIncl to true to avoid returning it, and skipping reading/writing checkpoint.
+	CommitFromMakeNonIncl bool
 
 	// WantedBranchRefs filter branches.  When CommitFromIncl and AllBranches is set this is required.
 	WantedBranchRefs []string
@@ -194,7 +198,13 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 				args = append(args, c)
 			}
 		}
-		args = append(args, s.opts.CommitFromIncl+"^..HEAD")
+		pf := ""
+		if s.opts.CommitFromMakeNonIncl {
+			pf = "..HEAD"
+		} else {
+			pf = "^..HEAD"
+		}
+		args = append(args, s.opts.CommitFromIncl+pf)
 	} else {
 		if s.opts.AllBranches {
 			args = append(args, "--all")

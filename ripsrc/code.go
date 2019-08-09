@@ -161,14 +161,15 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 	}()
 
 	processOpts := process.Opts{
-		Logger:           s.opts.Logger,
-		RepoDir:          s.opts.RepoDir,
-		CheckpointsDir:   s.opts.CheckpointsDir,
-		NoStrictResume:   s.opts.NoStrictResume,
-		CommitFromIncl:   s.opts.CommitFromIncl,
-		AllBranches:      s.opts.AllBranches,
-		ParentsGraph:     s.commitGraph,
-		WantedBranchRefs: wantedBranchRefs,
+		Logger:                s.opts.Logger,
+		RepoDir:               s.opts.RepoDir,
+		CheckpointsDir:        s.opts.CheckpointsDir,
+		NoStrictResume:        s.opts.NoStrictResume,
+		CommitFromIncl:        s.opts.CommitFromIncl,
+		CommitFromMakeNonIncl: s.opts.CommitFromMakeNonIncl,
+		AllBranches:           s.opts.AllBranches,
+		ParentsGraph:          s.commitGraph,
+		WantedBranchRefs:      wantedBranchRefs,
 	}
 	gitProcessor := process.New(processOpts)
 	err = gitProcessor.Run(gitRes)
