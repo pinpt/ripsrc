@@ -170,18 +170,28 @@ func (s *Process) Run(resChan chan Result) error {
 		}
 	}()
 
+	drainAndExit := func() {
+		for range commits {
+		}
+		<-done
+	}
+
 	i := 0
 	for commit := range commits {
 		if i == 0 {
 			err := s.initCheckpoints()
 			if err != nil {
-				<-done
+				drainAndExit()
 				return err
 			}
 		}
 		i++
 		commit.Parents = s.graph.Parents[commit.Hash]
-		s.processCommit(resChan, commit)
+		err := s.processCommit(resChan, commit)
+		if err != nil {
+			drainAndExit()
+			return err
+		}
 	}
 
 	if len(s.mergeParts) > 0 {
@@ -225,13 +235,13 @@ func (s *Process) trimGraphAfterCommitProcessed(commit string) {
 	}
 }
 
-func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
+func (s *Process) processCommit(resChan chan Result, commit parser.Commit) error {
 	if len(s.mergeParts) > 0 {
 		// continuing with merge
 		if s.mergePartsCommit == commit.Hash {
 			s.mergeParts[commit.MergeDiffFrom] = commit
 			// still same
-			return
+			return nil
 		} else {
 			// finished
 			s.processGotMergeParts(resChan)
@@ -244,15 +254,16 @@ func (s *Process) processCommit(resChan chan Result, commit parser.Commit) {
 		s.mergePartsCommit = commit.Hash
 		s.mergeParts = map[string]parser.Commit{}
 		s.mergeParts[commit.MergeDiffFrom] = commit
-		return
+		return nil
 	}
 
 	res, err := s.processRegularCommit(commit)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	s.trimGraphAfterCommitProcessed(commit.Hash)
 	resChan <- res
+	return nil
 }
 
 func (s *Process) processGotMergeParts(resChan chan Result) {
@@ -323,7 +334,7 @@ func (s *Timing) OutputStats(wr io.Writer) {
 
 }
 
-func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ error) {
+func (s *Process) processRegularCommit(commit parser.Commit) (res Result, rerr error) {
 	s.lastProcessedCommitHash = commit.Hash
 
 	start := time.Now()
@@ -386,7 +397,11 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 			// rename with no patch
 			if len(diff.Hunks) == 0 {
 				parent := commit.Parents[0]
-				pb := s.repo.GetFileMust(parent, diff.PathPrev)
+				pb, err := s.repo.GetFileMust(parent, diff.PathPrev)
+				if err != nil {
+					rerr = fmt.Errorf("could not get parent file for rename: %v err: %v", commit.Hash, err)
+					return
+				}
 				if pb.IsBinary {
 					s.repo[commit.Hash][diff.Path] = pb
 					res.Files[diff.Path] = pb
@@ -452,8 +467,11 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 		if _, ok := res.Files[fp]; ok {
 			continue
 		}
-		blame := s.repo.GetFileMust(p, fp)
-
+		blame, err := s.repo.GetFileMust(p, fp)
+		if err != nil {
+			rerr = fmt.Errorf("could not get parent file for unchanged: %v err: %v", commit.Hash, err)
+			return
+		}
 		// copy reference
 		s.repo[commit.Hash][fp] = blame
 	}
@@ -463,7 +481,7 @@ func (s *Process) processRegularCommit(commit parser.Commit) (res Result, _ erro
 
 const deletedPrefix = "@@@del@@@"
 
-func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.Commit) (res Result, _ error) {
+func (s *Process) processMergeCommit(commitHash string, parts map[string]parser.Commit) (res Result, rerr error) {
 	s.lastProcessedCommitHash = commitHash
 
 	start := time.Now()
@@ -565,7 +583,11 @@ EACHFILE:
 				continue
 			}
 			parent := parentHashes[i]
-			pb := s.repo.GetFileMust(parent, diff.PathPrev)
+			pb, err := s.repo.GetFileMust(parent, diff.PathPrev)
+			if err != nil {
+				rerr = fmt.Errorf("could not get file for merge bin parent. merge: %v %v", commitHash, err)
+				return
+			}
 			if pb.IsBinary {
 				binParentsWithDiffs++
 			}
@@ -632,7 +654,11 @@ EACHFILE:
 			}
 
 			parentHash := parentHashes[i]
-			parentBlame := s.repo.GetFileMust(parentHash, pathPrev)
+			parentBlame, err := s.repo.GetFileMust(parentHash, pathPrev)
+			if err != nil {
+				rerr = fmt.Errorf("could not get file for unchanged case1 merge file. merge: %v %v", commitHash, err)
+				return
+			}
 			parents = append(parents, *parentBlame)
 		}
 		//fmt.Println("path", k)
@@ -712,19 +738,24 @@ EACHFILE:
 				}
 			}*/
 
-		var res *incblame.Blame
+		var res2 *incblame.Blame
 		for _, c := range candidates {
 			// unchanged
 			//if c.Commit == root {
 			//	continue
 			//}
-			res = c
+			res2 = c
 		}
-		if res == nil {
+		if res2 == nil {
+			var err error
 			// all are unchanged
-			res = s.repo.GetFileMust(root, f)
+			res2, err = s.repo.GetFileMust(root, f)
+			if err != nil {
+				rerr = fmt.Errorf("could not get file for unchanged case2 merge file. merge: %v %v", commitHash, err)
+				return
+			}
 		}
-		s.repo[commitHash][f] = res
+		s.repo[commitHash][f] = res2
 
 	}
 

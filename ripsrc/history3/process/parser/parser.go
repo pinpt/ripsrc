@@ -85,7 +85,6 @@ func (s *Parser) Run(res chan Commit) error {
 	if s.state != stNotStarted {
 		s.endCommit()
 	}
-
 	return nil
 }
 

@@ -86,16 +86,16 @@ func (s Repo) GetFileOptional(commitHash string, filePath string) *incblame.Blam
 	return c[filePath]
 }
 
-func (s Repo) GetFileMust(commitHash string, filePath string) *incblame.Blame {
+func (s Repo) GetFileMust(commitHash string, filePath string) (*incblame.Blame, error) {
 	c, ok := s[commitHash]
 	if !ok {
 		panic(fmt.Errorf("commit not found: %v when looking for file: %v", commitHash, filePath))
 	}
 	res, ok := c[filePath]
 	if !ok {
-		panic(fmt.Errorf("file is missing in commit. commit: %v file: %v", commitHash, filePath))
+		return nil, fmt.Errorf("file is missing in commit. commit: %v file: %v", commitHash, filePath)
 	}
-	return res
+	return res, nil
 }
 
 type Unloader struct {
