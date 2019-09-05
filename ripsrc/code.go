@@ -71,7 +71,7 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 
 	go func() {
 		for r := range res2 {
-			for f := range r.Files {
+			for f := range r.Blames {
 				res <- f
 			}
 		}
@@ -89,7 +89,7 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 
 type CommitCode struct {
 	Commit
-	Files chan BlameResult
+	Blames chan BlameResult
 }
 
 // CodeByCommit returns code information using one record per commit that includes records by file
@@ -147,7 +147,7 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 			sha := r1.Commit
 
 			rc := CommitCode{}
-			rc.Files = make(chan BlameResult)
+			rc.Blames = make(chan BlameResult)
 			commit, ok := s.commitMeta[sha]
 			if !ok {
 				panic(fmt.Errorf("commit not found in commit meta: %v", r1.Commit))
@@ -160,9 +160,9 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 			}
 			res <- rc
 			for _, r := range rs {
-				rc.Files <- r
+				rc.Blames <- r
 			}
-			close(rc.Files)
+			close(rc.Blames)
 		}
 		done <- true
 	}()

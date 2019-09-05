@@ -54,14 +54,16 @@ type Commit struct {
 	AuthorEmail    string
 	CommitterName  string
 	CommitterEmail string
-	Files          map[string]*CommitFile
-	Date           time.Time
-	Ordinal        int64
-	Message        string
+
+	Date    time.Time
+	Ordinal int64
+	Message string
 
 	Parents []string
 	Signed  bool
 	//Previous *Commit
+
+	Files map[string]*CommitFile
 }
 
 // Author returns either the author name (preference) or the email if not found

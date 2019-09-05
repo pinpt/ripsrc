@@ -109,7 +109,7 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 
 			for commit := range res {
 				fmt.Println(commit.SHA, commit.Date)
-				for blame := range commit.Files {
+				for blame := range commit.Blames {
 					entries++
 					var license string
 					if blame.License != nil {

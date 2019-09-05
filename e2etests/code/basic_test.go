@@ -33,7 +33,7 @@ func TestBasic(t *testing.T) {
 				for c := range ch {
 					c2 := commit{}
 					c2.SHA = c.SHA
-					for f := range c.Files {
+					for f := range c.Blames {
 						c2.Files = append(c2.Files, f)
 					}
 					byCommit = append(byCommit, c2)
