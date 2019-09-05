@@ -2,6 +2,7 @@ package ripsrc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pinpt/ripsrc/ripsrc/branchmeta"
@@ -87,7 +88,7 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 }
 
 type CommitCode struct {
-	SHA   string
+	Commit
 	Files chan BlameResult
 }
 
@@ -143,9 +144,15 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 	done := make(chan bool)
 	go func() {
 		for r1 := range gitRes {
+			sha := r1.Commit
+
 			rc := CommitCode{}
-			rc.SHA = r1.Commit
 			rc.Files = make(chan BlameResult)
+			commit, ok := s.commitMeta[sha]
+			if !ok {
+				panic(fmt.Errorf("commit not found in commit meta: %v", r1.Commit))
+			}
+			rc.Commit = commit
 
 			rs, err := s.codeInfoFiles(r1)
 			if err != nil {
