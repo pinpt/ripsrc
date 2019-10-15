@@ -78,7 +78,7 @@ func (s *Ripsrc) Code(ctx context.Context, res chan BlameResult) error {
 		done <- true
 	}()
 
-	err := s.CodeByCommit(ctx, res2)
+	err := s.CodeByCommit(ctx, res2, nil)
 	<-done
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ type CommitCode struct {
 }
 
 // CodeByCommit returns code information using one record per commit that includes records by file
-func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
+func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode, wantedBrances map[string]branchmeta.Branch) error {
 	defer close(res)
 
 	err := s.prepareGitExec(ctx)
@@ -109,17 +109,21 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 	var wantedBranchRefs []string
 	var wantedBranchNames []string
 
-	if s.opts.CommitFromIncl != "" && s.opts.AllBranches {
+	if wantedBrances != nil {
+		fmt.Println("--------", wantedBrances)
+		for _, b := range wantedBrances {
+			wantedBranchRefs = append(wantedBranchRefs, b.Commit)
+			wantedBranchNames = append(wantedBranchNames, b.Name)
+		}
+	} else if s.opts.CommitFromIncl != "" && s.opts.AllBranches {
 		allBranches, err := branchmeta.Get(ctx, branchmeta.Opts{
 			Logger:    s.opts.Logger,
 			RepoDir:   s.opts.RepoDir,
 			UseOrigin: s.opts.BranchesUseOrigin,
 		})
-
 		if err != nil {
 			return err
 		}
-
 		deadline := s.opts.IncrementalIgnoreBranchesOlderThan
 		if deadline.IsZero() {
 			deadline = time.Now().Add(3 * 30 * 24 * time.Hour)
