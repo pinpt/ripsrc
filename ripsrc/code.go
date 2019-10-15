@@ -110,7 +110,6 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode, wantedBr
 	var wantedBranchNames []string
 
 	if wantedBrances != nil {
-		fmt.Println("--------", wantedBrances)
 		for _, b := range wantedBrances {
 			wantedBranchRefs = append(wantedBranchRefs, b.Commit)
 			wantedBranchNames = append(wantedBranchNames, b.Name)
