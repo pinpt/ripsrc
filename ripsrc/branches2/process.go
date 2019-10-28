@@ -129,7 +129,7 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 		}
 	}
 
-	for _, sha := range s.opts.PullRequestSHAs {
+	for _, sha := range uniqueStrings(s.opts.PullRequestSHAs) {
 		namesAndHashes = append(namesAndHashes, nameAndHash{Commit: sha})
 	}
 
@@ -159,6 +159,17 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 	}
 	wg.Wait()
 	return lastErr
+}
+
+func uniqueStrings(arr1 []string) (res []string) {
+	m := map[string]bool{}
+	for _, s := range arr1 {
+		m[s] = true
+	}
+	for s := range m {
+		res = append(res, s)
+	}
+	return
 }
 
 func getAllCommits(gr *parentsgraph.Graph, head string) (res []string) {
@@ -248,7 +259,13 @@ func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, re
 	res := Branch{}
 	if name == "" {
 		res.IsPullRequest = true
+
+		// passed sha not found in the tree at all, skip it
+		if _, ok := s.opts.CommitGraph.Parents[nameAndHash.Commit]; !ok {
+			return nil
+		}
 	}
+
 	res.HeadSHA = nameAndHash.Commit
 	res.Name = name
 	defaultHead := s.defaultBranch.Commit
