@@ -14,14 +14,21 @@ import (
 	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
 )
 
-// Branch contains information about the branch and commits on that branch.
+// Branch contains information about the branch or pull request, for example commits.
 type Branch struct {
 	// ID of the branch hash(Commits[0] + Name)
 	// More stable id that allows name reuse after deletes.
-	ID string
+	// Only set for branches.
+	BranchID string
 
 	// Name of the branch
 	Name string
+
+	// IsPullRequest is set to true if this is created based on passed pull request sha instead of repo branch.
+	IsPullRequest bool
+
+	// HeadSHA is the sha of the head commit.
+	HeadSHA string
 
 	// IsDefault is true if this is default branch of the repo. Typically true for master.
 	IsDefault bool
@@ -57,12 +64,22 @@ type Branch struct {
 }
 
 type Opts struct {
-	Logger               logger.Logger
+	// Logger outputs logs.
+	Logger logger.Logger
+	// IncludeDefaultBranch if default branch should be included in results.
 	IncludeDefaultBranch bool
-	Concurrency          int
-	RepoDir              string
-	CommitGraph          *parentsgraph.Graph
-	UseOrigin            bool
+	// Concurrency sets number of goroutines that process tree.
+	Concurrency int
+	// RepoDir is location of git repo.
+	RepoDir string
+	// CommitGraph is the full graph of commits.
+	CommitGraph *parentsgraph.Graph
+	// UseOrigin set to true to use branches with origin/ prefix instead of default.
+	UseOrigin bool
+	// PullRequestSHAs is a list of custom sha references to process similar to branches returned from the repo.
+	PullRequestSHAs []string
+	// PullRequestsOnly skips branch data output, only using passed PullRequestSHAs
+	PullRequestsOnly bool
 }
 
 type Process struct {
@@ -91,10 +108,11 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 		return err
 	}
 
-	if s.opts.IncludeDefaultBranch {
+	if !s.opts.PullRequestsOnly && s.opts.IncludeDefaultBranch {
 		res <- Branch{
-			ID:        branchID(s.defaultBranch.Name, nil),
+			BranchID:  branchID(s.defaultBranch.Name, nil),
 			Name:      s.defaultBranch.Name,
+			HeadSHA:   s.defaultBranch.Commit,
 			IsDefault: true,
 			Commits:   getAllCommits(s.opts.CommitGraph, s.defaultBranch.Commit),
 		}
@@ -102,12 +120,20 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 
 	s.reachableFromHead = newReachableFromHead(s.opts.CommitGraph, s.defaultBranch.Commit)
 
-	nameAndHashes, err := s.getNamesAndHashes()
-	if err != nil {
-		return err
+	var namesAndHashes namesAndHashes
+
+	if !s.opts.PullRequestsOnly {
+		namesAndHashes, err = s.getNamesAndHashes()
+		if err != nil {
+			return err
+		}
 	}
 
-	workCh := nameAndHashes.Chan()
+	for _, sha := range s.opts.PullRequestSHAs {
+		namesAndHashes = append(namesAndHashes, nameAndHash{Commit: sha})
+	}
+
+	workCh := namesAndHashes.Chan()
 	wg := sync.WaitGroup{}
 	var lastErr error
 	var lastErrMu sync.Mutex
@@ -211,13 +237,25 @@ func headCommit(ctx context.Context, gitCommand string, repoDir string) (string,
 }
 
 func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, resChan chan Branch) error {
-	s.opts.Logger.Info("processing branch", "name", nameAndHash.Name, "commit", nameAndHash.Commit)
+	name := nameAndHash.Name
+	if name == "" { // this is a passed pr
+		s.opts.Logger.Info("processing pr", "head", nameAndHash.Commit)
+	} else {
+		s.opts.Logger.Info("processing branch", "name", nameAndHash.Name, "commit", nameAndHash.Commit)
+	}
 	gr := s.opts.CommitGraph
+
 	res := Branch{}
-	res.Name = nameAndHash.Name
+	if name == "" {
+		res.IsPullRequest = true
+	}
+	res.HeadSHA = nameAndHash.Commit
+	res.Name = name
 	defaultHead := s.defaultBranch.Commit
 	res.Commits, res.BranchedFromCommits = branchCommits(gr, defaultHead, s.reachableFromHead, nameAndHash.Commit)
-	res.ID = branchID(res.Name, res.BranchedFromCommits)
+	if name != "" {
+		res.BranchID = branchID(res.Name, res.BranchedFromCommits)
+	}
 	if s.reachableFromHead[nameAndHash.Commit] {
 		res.IsMerged = true
 		res.MergeCommit = getMergeCommit(gr, s.reachableFromHead, nameAndHash.Commit)

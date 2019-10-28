@@ -28,6 +28,10 @@ func NewTest(t *testing.T, repoName string, opts *branches2.Opts) *Test {
 }
 
 func (s *Test) Run() []branches2.Branch {
+	return s.run()
+}
+
+func (s *Test) run() []branches2.Branch {
 	t := s.t
 	dirs := testutil.UnzipTestRepo(s.repoName)
 	defer dirs.Remove()
@@ -72,7 +76,7 @@ func assertResult(t *testing.T, want, got []branches2.Branch) {
 
 	for i := range want {
 		g := gotCopy[i]
-		g.ID = "" // do not compare id
+		g.BranchID = "" // do not compare id
 		if !reflect.DeepEqual(want[i], g) {
 			t.Fatalf("invalid branch, wanted\n%+v\ngot\n%+v", want[i], got[i])
 		}

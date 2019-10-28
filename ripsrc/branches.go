@@ -40,6 +40,7 @@ func (s *Ripsrc) Branches(ctx context.Context, res chan Branch) error {
 	opts.CommitGraph = s.commitGraph
 	opts.RepoDir = s.opts.RepoDir
 	opts.IncludeDefaultBranch = true
+	opts.PullRequestSHAs = s.opts.PullRequestSHAs
 	pr := branches2.New(opts)
 	err = pr.Run(ctx, res2)
 	<-done

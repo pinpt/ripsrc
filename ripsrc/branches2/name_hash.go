@@ -87,6 +87,9 @@ func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
 			}
 			b.Name = strings.TrimPrefix(b.Name, "origin/")
 		}
+		if len(b.Name) == 0 {
+			panic("branch name empty")
+		}
 		if b.Name == "HEAD" {
 			continue
 		}

@@ -45,6 +45,9 @@ type Opts struct {
 
 	// BranchesUseOrigin by default ripsrc lists only local branches when using Branches method. Set this to true to use origin/ branches instead.
 	BranchesUseOrigin bool
+
+	// PullRequestSHAs is a list of custom sha references to process similar to branches returned from the repo.
+	PullRequestSHAs []string
 }
 
 // Ripsrc runs on a single repo.
