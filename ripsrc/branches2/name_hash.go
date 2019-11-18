@@ -2,10 +2,10 @@ package branches2
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"os/exec"
-	"sort"
-	"strings"
+
+	"github.com/pinpt/ripsrc/ripsrc/branchmeta"
 )
 
 type nameAndHash struct {
@@ -26,84 +26,19 @@ func (s namesAndHashes) Chan() chan nameAndHash {
 	return res
 }
 
-func (s *Process) getDefaultBranch() (string, error) {
-	args := []string{
-		"symbolic-ref",
-		"--short",
-		"HEAD",
-	}
-	data, err := execCommand("git", s.opts.RepoDir, args)
+func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
+	opts := branchmeta.Opts{}
+	opts.Logger = s.opts.Logger
+	opts.RepoDir = s.opts.RepoDir
+	opts.UseOrigin = s.opts.UseOrigin
+	res0, err := branchmeta.Get(context.Background(), opts)
 	if err != nil {
-		return "", err
+		return res, err
 	}
-	res := strings.TrimSpace(string(data))
-	if len(res) == 0 {
-		return "", errors.New("could not get the default branch name")
+	for _, item := range res0 {
+		res = append(res, nameAndHash{Name: item.Name, Commit: item.Commit})
 	}
 	return res, nil
-}
-
-func (s *Process) getNamesAndHashes() (res namesAndHashes, _ error) {
-	defaultBranch, err := s.getDefaultBranch()
-	if err != nil {
-		return nil, err
-	}
-	args := []string{
-		"for-each-ref",
-		"--format",
-		"%(objectname) %(refname:short)",
-	}
-	if s.opts.UseOrigin {
-		args = append(args, "refs/remotes/origin")
-	} else {
-		args = append(args, "refs/heads")
-	}
-	data, err := execCommand("git", s.opts.RepoDir, args)
-	if err != nil {
-		return nil, err
-	}
-	lines := bytes.Split(data, []byte("\n"))
-	for _, line := range lines {
-		line := string(line)
-		line = strings.TrimSpace(line)
-		if len(line) == 0 {
-			continue
-		}
-		if line[0] == '(' {
-			// not a branch, but a entry for detached head
-			// (HEAD detached at faeab7d)
-			continue
-		}
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) != 2 {
-			panic("unexpected format")
-		}
-		b := nameAndHash{}
-		b.Commit = parts[0]
-		b.Name = parts[1]
-		if s.opts.UseOrigin {
-			if !strings.HasPrefix(b.Name, "origin/") {
-				panic("branch name does not have origin/ prefix")
-			}
-			b.Name = strings.TrimPrefix(b.Name, "origin/")
-		}
-		if len(b.Name) == 0 {
-			panic("branch name empty")
-		}
-		if b.Name == "HEAD" {
-			continue
-		}
-		if b.Name == defaultBranch {
-			continue
-		}
-		res = append(res, b)
-	}
-	sort.Slice(res, func(i, j int) bool {
-		a := res[i]
-		b := res[j]
-		return a.Name < b.Name
-	})
-	return
 }
 
 func execCommand(command string, dir string, args []string) ([]byte, error) {

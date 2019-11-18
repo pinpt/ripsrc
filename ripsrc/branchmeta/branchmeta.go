@@ -20,17 +20,13 @@ type Opts struct {
 	UseOrigin bool
 }
 
-type Branch struct {
+type BranchWithCommitTime struct {
 	Name                string
 	Commit              string
 	CommitCommitterTime time.Time
 }
 
-func Get(ctx context.Context, opts Opts) (res []Branch, _ error) {
-	return getBranches(ctx, opts)
-}
-
-func getBranches(ctx context.Context, opts Opts) (res []Branch, _ error) {
+func Get(ctx context.Context, opts Opts) (res []BranchWithCommitTime, _ error) {
 	defaultBranch, err := getDefaultBranch(opts)
 	if err != nil {
 		return nil, err
@@ -65,7 +61,7 @@ func getBranches(ctx context.Context, opts Opts) (res []Branch, _ error) {
 		if len(parts) != 3 {
 			panic("unexpected format")
 		}
-		b := Branch{}
+		b := BranchWithCommitTime{}
 		b.Commit = parts[0]
 		b.Name = parts[1]
 		date, err := gittime.Parse(parts[2])

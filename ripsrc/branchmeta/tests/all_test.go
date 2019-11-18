@@ -11,7 +11,7 @@ func TestBranchesBasic1(t *testing.T) {
 	test := NewTest(t, "basic1", nil)
 	got := test.Run()
 
-	want := []branchmeta.Branch{
+	want := []branchmeta.BranchWithCommitTime{
 		{
 			Name:                "a",
 			Commit:              "9b39087654af70197f68d0b3d196a4a20d987cd6",

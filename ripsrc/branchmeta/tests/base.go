@@ -26,7 +26,7 @@ func NewTest(t *testing.T, repoName string, opts *branchmeta.Opts) *Test {
 	return s
 }
 
-func (s *Test) Run() []branchmeta.Branch {
+func (s *Test) Run() []branchmeta.BranchWithCommitTime {
 	t := s.t
 	dirs := testutil.UnzipTestRepo(s.repoName)
 	defer dirs.Remove()
@@ -48,12 +48,12 @@ func (s *Test) Run() []branchmeta.Branch {
 	return res
 }
 
-func assertResult(t *testing.T, want, got []branchmeta.Branch) {
+func assertResult(t *testing.T, want, got []branchmeta.BranchWithCommitTime) {
 	t.Helper()
 	if len(want) != len(got) {
 		t.Fatalf("invalid result count, wanted %v, got %v", len(want), len(got))
 	}
-	gotCopy := make([]branchmeta.Branch, len(got))
+	gotCopy := make([]branchmeta.BranchWithCommitTime, len(got))
 	copy(gotCopy, got)
 
 	for i := range want {

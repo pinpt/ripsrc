@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/pinpt/ripsrc/ripsrc/branchmeta"
 	"github.com/pinpt/ripsrc/ripsrc/pkg/logger"
 
 	"github.com/pinpt/ripsrc/ripsrc/parentsgraph"
@@ -102,11 +102,11 @@ func New(opts Opts) *Process {
 func (s *Process) Run(ctx context.Context, res chan Branch) error {
 	defer close(res)
 
-	var err error
-	s.defaultBranch, err = getDefaultBranch(ctx, "git", s.opts.RepoDir)
+	defaultBranch, err := branchmeta.GetDefault(ctx, s.opts.RepoDir)
 	if err != nil {
 		return err
 	}
+	s.defaultBranch = nameAndHash{Name: defaultBranch.Name, Commit: defaultBranch.Commit}
 
 	if !s.opts.PullRequestsOnly && s.opts.IncludeDefaultBranch {
 		res <- Branch{
@@ -207,44 +207,6 @@ func (s *Process) RunSlice(ctx context.Context) (res []Branch, _ error) {
 	err := s.Run(ctx, resChan)
 	<-done
 	return res, err
-}
-
-func getDefaultBranch(ctx context.Context, gitCommand string, repoDir string) (res nameAndHash, _ error) {
-	name, err := headBranch(ctx, gitCommand, repoDir)
-	if err != nil {
-		return res, err
-	}
-	commit, err := headCommit(ctx, gitCommand, repoDir)
-	if err != nil {
-		return res, err
-	}
-	res.Name = name
-	res.Commit = commit
-	return res, nil
-}
-
-func headBranch(ctx context.Context, gitCommand string, repoDir string) (string, error) {
-	data, err := execCommand(gitCommand, repoDir, []string{"rev-parse", "--abbrev-ref", "HEAD"})
-	if err != nil {
-		return "", err
-	}
-	res := strings.TrimSpace(string(data))
-	if res == "HEAD" {
-		return "", errors.New("cound not retrieve the name of the default branch")
-	}
-	return res, nil
-}
-
-func headCommit(ctx context.Context, gitCommand string, repoDir string) (string, error) {
-	data, err := execCommand(gitCommand, repoDir, []string{"rev-parse", "HEAD"})
-	if err != nil {
-		return "", err
-	}
-	res := strings.TrimSpace(string(data))
-	if len(res) != 40 {
-		return "", errors.New("unexpected output from git rev-parse HEAD")
-	}
-	return res, nil
 }
 
 func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, resChan chan Branch) error {
