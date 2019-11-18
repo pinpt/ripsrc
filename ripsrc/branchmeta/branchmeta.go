@@ -15,9 +15,10 @@ import (
 )
 
 type Opts struct {
-	Logger    logger.Logger
-	RepoDir   string
-	UseOrigin bool
+	Logger         logger.Logger
+	RepoDir        string
+	UseOrigin      bool
+	IncludeDefault bool
 }
 
 type BranchWithCommitTime struct {
@@ -78,7 +79,7 @@ func Get(ctx context.Context, opts Opts) (res []BranchWithCommitTime, _ error) {
 		if b.Name == "HEAD" {
 			continue
 		}
-		if b.Name == defaultBranch {
+		if !opts.IncludeDefault && b.Name == defaultBranch {
 			continue
 		}
 		res = append(res, b)
