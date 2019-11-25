@@ -61,6 +61,9 @@ type Branch struct {
 	// AheadDefaultCount is the number of commits made to this branch, not including commits on master.
 	// Same as len(Commits)
 	AheadDefaultCount int
+
+	// FirstCommit is the first commit on this branch
+	FirstCommit string
 }
 
 type Opts struct {
@@ -99,6 +102,14 @@ func New(opts Opts) *Process {
 	return s
 }
 
+func (s *Process) getFirstCommit() (string, error) {
+	buf, err := execCommand("git", s.opts.RepoDir, []string{"rev-list", "--max-parents=0", "HEAD"})
+	if err != nil {
+		return "", err
+	}
+	return string(buf), nil
+}
+
 func (s *Process) Run(ctx context.Context, res chan Branch) error {
 	defer close(res)
 
@@ -109,12 +120,17 @@ func (s *Process) Run(ctx context.Context, res chan Branch) error {
 	s.defaultBranch = nameAndHash{Name: defaultBranch.Name, Commit: defaultBranch.Commit}
 
 	if !s.opts.PullRequestsOnly && s.opts.IncludeDefaultBranch {
+		firstCommit, err := s.getFirstCommit()
+		if err != nil {
+			return err
+		}
 		res <- Branch{
-			BranchID:  branchID(s.defaultBranch.Name, nil),
-			Name:      s.defaultBranch.Name,
-			HeadSHA:   s.defaultBranch.Commit,
-			IsDefault: true,
-			Commits:   getAllCommits(s.opts.CommitGraph, s.defaultBranch.Commit),
+			BranchID:    branchID(s.defaultBranch.Name, nil),
+			Name:        s.defaultBranch.Name,
+			HeadSHA:     s.defaultBranch.Commit,
+			IsDefault:   true,
+			Commits:     getAllCommits(s.opts.CommitGraph, s.defaultBranch.Commit),
+			FirstCommit: firstCommit,
 		}
 	}
 
@@ -227,7 +243,6 @@ func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, re
 			return nil
 		}
 	}
-
 	res.HeadSHA = nameAndHash.Commit
 	res.Name = name
 	defaultHead := s.defaultBranch.Commit
@@ -244,6 +259,7 @@ func (s *Process) processBranch(ctx context.Context, nameAndHash nameAndHash, re
 		}
 	}
 	res.AheadDefaultCount = len(res.Commits)
+	res.FirstCommit = res.Commits[0]
 	resChan <- res
 	return nil
 }
