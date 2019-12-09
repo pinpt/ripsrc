@@ -109,6 +109,43 @@ func TestBranchesBehindMaster1(t *testing.T) {
 	assertResult(t, want, got)
 }
 
+// Check ordering of commits of master branch
+func TestBranchesMasterOrder(t *testing.T) {
+	test := NewTest(t, "master_order", &branches2.Opts{
+		IncludeDefaultBranch: true,
+	})
+	got := test.Run()
+
+	c1 := "88c671630d8c0a8d36e5c9037d461910297ac59b"
+	c2 := "5336c030caa3aaaae9d19b86a883e42040f5f539"
+	c3 := "7276ced6e6b938ac550949cb7d1d1446d286da97"
+	c4 := "871024b23514ed4023d6ec7743ff108905722c09"
+
+	want := []branches2.Branch{
+		{
+			Name:      "master",
+			HeadSHA:   c4,
+			IsDefault: true,
+			// NOTE: order of commits in master branch is not based on date or topology. First we get all commits for master, then new commits per branch.
+			// For this reason we have separate FirstCommit field
+			Commits:     []string{c2, c1, c3, c4},
+			FirstCommit: c1,
+		},
+		{
+			IsMerged:            true,
+			MergeCommit:         c4,
+			Name:                "b1",
+			HeadSHA:             c3,
+			Commits:             []string{c3},
+			BranchedFromCommits: []string{c1},
+			AheadDefaultCount:   1,
+			FirstCommit:         c3,
+		},
+	}
+
+	assertResult(t, want, got)
+}
+
 func TestPullRequestsBasic1(t *testing.T) {
 
 	test := NewTest(t, "basic1", nil)
