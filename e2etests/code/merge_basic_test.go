@@ -79,7 +79,6 @@ func TestMergeBasic(t *testing.T) {
 		Message: "m",
 		Date:    c3d,
 		//Parent:   nil,
-		Signed:  false,
 		Ordinal: 3,
 	}
 
@@ -100,7 +99,6 @@ func TestMergeBasic(t *testing.T) {
 		},
 		Message: "merge",
 		Date:    c4d,
-		Signed:  false,
 		Ordinal: 4,
 	}
 

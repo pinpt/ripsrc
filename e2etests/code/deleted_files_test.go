@@ -47,7 +47,6 @@ func TestDeletedFiles(t *testing.T) {
 		},
 		Message: "c1",
 		Date:    c1d,
-		Signed:  false,
 		Ordinal: 1,
 	}
 
@@ -62,7 +61,6 @@ func TestDeletedFiles(t *testing.T) {
 		},
 		Message: "c2",
 		Date:    c2d,
-		Signed:  false,
 		Ordinal: 2,
 	}
 

@@ -83,7 +83,6 @@ func TestBasic(t *testing.T) {
 		Message: "c1",
 		Date:    c1d,
 		//Parent:  nil,
-		Signed: false,
 		//Previous: nil,
 		Ordinal: 1,
 	}
@@ -102,7 +101,6 @@ func TestBasic(t *testing.T) {
 		Message: "c2",
 		Date:    c2d,
 		//Parent:   nil,
-		Signed: false,
 		//Previous: &commit1,
 		Ordinal: 2,
 	}

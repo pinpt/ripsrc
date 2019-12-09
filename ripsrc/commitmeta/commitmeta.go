@@ -60,7 +60,6 @@ type Commit struct {
 	Message string
 
 	Parents []string
-	Signed  bool
 	//Previous *Commit
 
 	Files map[string]*CommitFile
