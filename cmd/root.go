@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pinpt/ripsrc/ripsrc"
 	"github.com/pinpt/ripsrc/ripsrc/cmd/cmdbranches"
 	"github.com/pinpt/ripsrc/ripsrc/cmd/cmdcode"
 	"github.com/spf13/cobra"
@@ -44,30 +43,6 @@ var branchesCmd = &cobra.Command{
 	},
 }
 
-var branchesMetaCmd = &cobra.Command{
-	Use:   "branches-meta <dir>",
-	Short: "Extracts information about branches from repos in a directory",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		opts := ripsrc.Opts{
-			RepoDir:     args[0],
-			AllBranches: true,
-		}
-		rip := ripsrc.New(opts)
-		ctx := context.TODO()
-		res := make(chan ripsrc.Branch)
-		go func() {
-			for b := range res {
-				fmt.Println("branch", b.Name, "first commit:", b.FirstCommit)
-			}
-		}()
-		err := rip.Branches(ctx, res)
-		if err != nil {
-			panic(err)
-		}
-	},
-}
-
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -80,7 +55,6 @@ func Execute() {
 
 	branchesCmd.Flags().String("profile", "", "one of mem, mutex, cpu, block, trace or empty to disable")
 	rootCmd.AddCommand(branchesCmd)
-	rootCmd.AddCommand(branchesMetaCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

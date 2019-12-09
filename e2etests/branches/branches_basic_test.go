@@ -15,11 +15,12 @@ func TestE2EBranchesBasic1(t *testing.T) {
 
 	want := []ripsrc.Branch{
 		{
-			BranchID:  "fc613b4dfd6736a7bd268c8a0e74ed0d1c04a959f59dd74ef2874983fd443fc9",
-			Name:      "master",
-			HeadSHA:   c1,
-			IsDefault: true,
-			Commits:   []string{c1},
+			BranchID:    "fc613b4dfd6736a7bd268c8a0e74ed0d1c04a959f59dd74ef2874983fd443fc9",
+			Name:        "master",
+			HeadSHA:     c1,
+			IsDefault:   true,
+			Commits:     []string{c1},
+			FirstCommit: c1,
 		},
 		{
 			BranchID:            "f45c6fa79ef6f5641148aef7f6c2ea71dd74bc207011e3947817d4a8ef4b0ff8",
@@ -30,6 +31,7 @@ func TestE2EBranchesBasic1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  0,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 

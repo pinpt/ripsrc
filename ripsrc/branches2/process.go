@@ -107,7 +107,7 @@ func (s *Process) getFirstCommit() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(buf), nil
+	return strings.TrimSpace(string(buf)), nil
 }
 
 func (s *Process) Run(ctx context.Context, res chan Branch) error {

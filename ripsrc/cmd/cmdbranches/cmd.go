@@ -105,7 +105,11 @@ func runOnRepo(ctx context.Context, wr io.Writer, opts Opts, repoDir string, glo
 
 		go func() {
 			for branch := range res {
-				fmt.Println("[BR]", branch.Name, "commits:", len(branch.Commits))
+				args := []interface{}{"[BR]", branch.Name, "commits", len(branch.Commits), "first_commit", branch.FirstCommit}
+				if len(branch.Commits) != 0 {
+					args = append(args, "commits[0]", branch.Commits[0])
+				}
+				fmt.Println(args...)
 			}
 			done <- true
 		}()

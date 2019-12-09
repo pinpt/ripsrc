@@ -22,6 +22,7 @@ func TestBranchesBasic1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  0,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 
@@ -39,10 +40,11 @@ func TestBranchesIncludeDefault1(t *testing.T) {
 
 	want := []branches2.Branch{
 		{
-			Name:      "master",
-			HeadSHA:   c1,
-			IsDefault: true,
-			Commits:   []string{c1},
+			Name:        "master",
+			HeadSHA:     c1,
+			IsDefault:   true,
+			Commits:     []string{c1},
+			FirstCommit: c1,
 		},
 		{
 			IsMerged:            false,
@@ -52,6 +54,7 @@ func TestBranchesIncludeDefault1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  0,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 
@@ -76,6 +79,7 @@ func TestBranchesMerged1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  0,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 
@@ -98,6 +102,7 @@ func TestBranchesBehindMaster1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  2,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 
@@ -124,6 +129,7 @@ func TestPullRequestsBasic1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  0,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 
@@ -150,6 +156,7 @@ func TestPullRequestsDuplicates1(t *testing.T) {
 			BranchedFromCommits: []string{c1},
 			BehindDefaultCount:  0,
 			AheadDefaultCount:   1,
+			FirstCommit:         c2,
 		},
 	}
 
