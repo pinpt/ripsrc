@@ -60,7 +60,6 @@ type Commit struct {
 	Message string
 
 	Parents []string
-	Signed  bool
 	//Previous *Commit
 
 	Files map[string]*CommitFile
@@ -191,7 +190,7 @@ func (s *Processor) gitLog() (io.ReadCloser, error) {
 		"--raw",
 		"--reverse",
 		"--numstat",
-		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Signed-Key: %GK%n!Date: %aI%n!Message: %s%n",
+		"--pretty=format:!SHA: %H%n!Parents: %P%n!Committer: %ce%n!CName: %cn%n!Author: %ae%n!AName: %an%n!Date: %aI%n!Message: %s%n",
 	}
 
 	if s.opts.CommitFromIncl != "" {
@@ -222,7 +221,6 @@ var (
 	authorNamePrefix    = []byte("!AName: ")
 	committerPrefix     = []byte("!Committer: ")
 	committerNamePrefix = []byte("!CName: ")
-	signedEmailPrefix   = []byte("!Signed-Key: ")
 	messagePrefix       = []byte("!Message: ")
 	parentsPrefix       = []byte("!Parents: ")
 	emailRegex          = regexp.MustCompile("<(.*)>")
@@ -402,13 +400,6 @@ func (p *parser) parse(line string) (bool, error) {
 			}
 			if bytes.HasPrefix(buf, committerNamePrefix) {
 				p.commit.CommitterName = string(buf[len(committerNamePrefix):])
-				return true, nil
-			}
-			if bytes.HasPrefix(buf, signedEmailPrefix) {
-				signedCommitLine := string(buf[len(signedEmailPrefix):])
-				if signedCommitLine != "" {
-					p.commit.Signed = true
-				}
 				return true, nil
 			}
 			if bytes.HasPrefix(buf, messagePrefix) {
