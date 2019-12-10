@@ -118,7 +118,7 @@ func (s *Process) initCheckpoints() error {
 		reader := repo.NewCheckpointReader(s.opts.Logger)
 		r, err := reader.Read(s.checkpointsDir, expectedCommit)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("Could not read checkpoint: %v", err)
 		}
 		s.repo = r
 	}
