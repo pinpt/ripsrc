@@ -178,7 +178,8 @@ func assertCommitEqual(t *testing.T, c1, c2 ripsrc.Commit) bool {
 		}
 		return false
 	}
-	if c1.Date != c2.Date {
+
+	if !equalDate(c1.Date, c2.Date) {
 		t.Error("commit.Date mismatch")
 		return false
 	}
@@ -200,6 +201,15 @@ func assertCommitEqual(t *testing.T, c1, c2 ripsrc.Commit) bool {
 	//	return false
 	//}
 	return true
+}
+
+func equalDate(d1, d2 time.Time) bool {
+	if !d1.Equal(d2) {
+		return false
+	}
+	_, off1 := d1.Zone()
+	_, off2 := d2.Zone()
+	return off1 == off2
 }
 
 func commitFileEqual(f1, f2 *ripsrc.CommitFile) bool {
