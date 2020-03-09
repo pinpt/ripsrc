@@ -122,7 +122,7 @@ func (s *Ripsrc) CodeByCommit(ctx context.Context, res chan CommitCode) error {
 
 		deadline := s.opts.IncrementalIgnoreBranchesOlderThan
 		if deadline.IsZero() {
-			deadline = time.Now().Add(3 * 30 * 24 * time.Hour)
+			deadline = time.Now().Add(-3 * 30 * 24 * time.Hour)
 		}
 		for _, b := range allBranches {
 			if b.CommitCommitterTime.After(deadline) {
