@@ -38,9 +38,11 @@ type Opts struct {
 
 	// IncrementalIgnoreBranchesOlderThan provides a way to ignore old branches in incremental processing.
 	// Default is time.Now() - 90 * day
+	// BUG: this field is ignored, only processing HEAD branch in incrementals right now
 	IncrementalIgnoreBranchesOlderThan time.Time
 
 	// AllBranches set to true to process all branches. If false, processes HEAD only.
+	// BUG: in incrementals only processing HEAD branch
 	AllBranches bool
 
 	// BranchesUseOrigin by default ripsrc lists only local branches when using Branches method. Set this to true to use origin/ branches instead.
